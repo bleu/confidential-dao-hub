@@ -22,7 +22,7 @@ export default function Home() {
             <span className="text-yellow-400">▮</span> confidential<span className="text-yellow-400">buybacks</span>
           </h1>
           <p className="mt-1 text-xs text-zinc-600">
-            dark-pool buybacks on Zama FHEVM · Sepolia · budgets, offers &amp; fills encrypted on-chain
+            dark-pool buybacks on Zama FHEVM · budgets, offers &amp; fills encrypted on-chain
           </p>
         </div>
         <ConnectButton />
@@ -49,12 +49,8 @@ export default function Home() {
       </main>
 
       <footer className="mt-16 border-t border-zinc-900 pt-4 text-xs text-zinc-600">
-        <p>
-          Hidden on-chain: budget · remaining · offers · fills · payouts. Public: reference price, participation
-          metadata, and epoch totals after delayed disclosure.
-        </p>
         <p className="mt-1 font-mono">
-          vault {CONTRACTS.vault.slice(0, 10)}… · cTOKEN {CONTRACTS.cToken.slice(0, 10)}… · PoC — not audited ·{" "}
+          PoC — not audited ·{" "}
           <a
             href="https://www.zama.ai"
             target="_blank"

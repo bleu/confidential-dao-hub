@@ -121,7 +121,10 @@ export function TreasuryPanel() {
           </div>
           <p className="mt-3 text-xs text-zinc-600">
             The budget is encrypted in your browser and submitted as a ciphertext — it never appears on-chain in
-            plaintext. Fund the vault with cUSDT before opening (payouts are best-effort against vault balance).
+            plaintext.
+          </p>
+          <p className="mt-3 text-xs text-zinc-600">
+            Fund the vault with cUSDT before opening (payouts are best-effort against vault balance).
           </p>
         </section>
       )}

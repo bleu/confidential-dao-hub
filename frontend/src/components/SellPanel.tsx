@@ -168,7 +168,6 @@ export function SellPanel() {
           <Step n={2} done={!!isOperator} active={!isOperator}>
             <p className="mb-2 text-sm text-zinc-300">
               Authorize the vault as an operator on cTOKEN so it can pull your escrow ({OPERATOR_TTL_HOURS}h expiry).
-              The vault only moves what you offer, in the same transaction as your offer.
             </p>
             {!isOperator && (
               <button
@@ -184,8 +183,8 @@ export function SellPanel() {
           <Step n={3} done={!!submittedCurrent} active={!!isOperator && !!hasOpen && !submittedCurrent}>
             <p className="mb-2 text-sm text-zinc-300">
               {hasOpen
-                ? `Offer cTOKEN into epoch #${currentId?.toString()} — the amount is encrypted in your browser. One offer per epoch.`
-                : "No epoch is currently open — wait for the treasury to open one."}
+                ? `Offer cTOKEN into epoch #${currentId?.toString()} - the amount is encrypted in your browser. One offer per epoch.`
+                : "No epoch is currently open - wait for the treasury to open one."}
             </p>
             {hasOpen && !submittedCurrent && (
               <div className="flex items-center gap-3">
