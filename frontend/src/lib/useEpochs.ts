@@ -8,8 +8,9 @@ export type EpochData = {
   budget: `0x${string}`;
   remaining: `0x${string}`;
   totalFilled: `0x${string}`;
-  price: bigint;
+  settlementPrice: bigint;
   openedAt: bigint;
+  endsAt: bigint;
   closedAt: bigint;
   open: boolean;
   disclosed: boolean;
@@ -23,7 +24,10 @@ export function useEpochs() {
     functionName: "epochCount",
   });
 
-  const ids = count !== undefined ? Array.from({ length: Number(count) }, (_, i) => BigInt(i)) : [];
+  const ids =
+    count !== undefined
+      ? Array.from({ length: Number(count) }, (_, i) => BigInt(i))
+      : [];
   const { data: results } = useReadContracts({
     contracts: ids.map((id) => ({
       address: CONTRACTS.vault,

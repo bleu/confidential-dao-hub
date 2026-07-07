@@ -15,13 +15,17 @@ import { CONTRACTS } from "@/config/contracts";
  *   immutable ciphertexts, so this is always safe).
  */
 
-const ZERO_HANDLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
+const ZERO_HANDLE =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
 const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 // Official UMD build; the package's `/bundle` entry is just a re-export of
 // window.relayerSDK, so the CDN script must load first (documented SSR setup).
-const SDK_CDN_URL = "https://cdn.zama.org/relayer-sdk-js/0.4.4/relayer-sdk-js.umd.cjs";
+const SDK_CDN_URL =
+  "https://cdn.zama.org/relayer-sdk-js/0.4.4/relayer-sdk-js.umd.cjs";
 
-type FhevmInstance = Awaited<ReturnType<typeof import("@zama-fhe/relayer-sdk/web").createInstance>>;
+type FhevmInstance = Awaited<
+  ReturnType<typeof import("@zama-fhe/relayer-sdk/web").createInstance>
+>;
 
 type RelayerSDK = {
   initSDK: () => Promise<boolean>;
@@ -43,10 +47,12 @@ async function loadRelayerSDK(): Promise<RelayerSDK> {
     const script = document.createElement("script");
     script.src = SDK_CDN_URL;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load the Zama relayer SDK from CDN"));
+    script.onerror = () =>
+      reject(new Error("Failed to load the Zama relayer SDK from CDN"));
     document.head.appendChild(script);
   });
-  if (!window.relayerSDK) throw new Error("Zama relayer SDK loaded but window.relayerSDK is missing");
+  if (!window.relayerSDK)
+    throw new Error("Zama relayer SDK loaded but window.relayerSDK is missing");
   return window.relayerSDK;
 }
 
@@ -64,17 +70,29 @@ export function getFhevm(): Promise<FhevmInstance> {
   return instancePromise;
 }
 
-/** Encrypts a euint64 input bound to (contract, user); returns calldata-ready hex. */
+/** Encrypts one or more euint64 inputs bound to (contract, user) under a single proof. */
+export async function encryptValues(
+  contractAddress: string,
+  userAddress: string,
+  values: bigint[],
+): Promise<{ handles: `0x${string}`[]; proof: `0x${string}` }> {
+  const fhe = await getFhevm();
+  const input = fhe.createEncryptedInput(contractAddress, userAddress);
+  for (const v of values) input.add64(v);
+  const { handles, inputProof } = await input.encrypt();
+  return { handles: handles.map((h) => toHex(h)), proof: toHex(inputProof) };
+}
+
+/** Encrypts a single euint64 input; returns calldata-ready hex. */
 export async function encryptAmount(
   contractAddress: string,
   userAddress: string,
   value: bigint,
 ): Promise<{ handle: `0x${string}`; proof: `0x${string}` }> {
-  const fhe = await getFhevm();
-  const input = fhe.createEncryptedInput(contractAddress, userAddress);
-  input.add64(value);
-  const { handles, inputProof } = await input.encrypt();
-  return { handle: toHex(handles[0]), proof: toHex(inputProof) };
+  const { handles, proof } = await encryptValues(contractAddress, userAddress, [
+    value,
+  ]);
+  return { handle: handles[0], proof };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,24 +118,57 @@ type DecryptSession = {
 let session: DecryptSession | null = null;
 const decryptedCache = new Map<string, bigint>();
 
+// Components subscribe so every consumer re-renders when any handle decrypts
+// (payout cells derive from two handles decrypted by sibling components).
+let cacheVersion = 0;
+const cacheListeners = new Set<() => void>();
+
+export function subscribeDecryptions(listener: () => void): () => void {
+  cacheListeners.add(listener);
+  return () => cacheListeners.delete(listener);
+}
+
+export function getDecryptionVersion(): number {
+  return cacheVersion;
+}
+
 export function getCachedDecryption(handle: string): bigint | undefined {
   if (handle === ZERO_HANDLE) return 0n;
   return decryptedCache.get(handle);
 }
 
-async function getSession(userAddress: string, signTypedData: SignTypedDataFn): Promise<DecryptSession> {
-  if (session && session.userAddress.toLowerCase() === userAddress.toLowerCase()) return session;
+async function getSession(
+  userAddress: string,
+  signTypedData: SignTypedDataFn,
+): Promise<DecryptSession> {
+  if (
+    session &&
+    session.userAddress.toLowerCase() === userAddress.toLowerCase()
+  )
+    return session;
 
   const fhe = await getFhevm();
   const keypair = fhe.generateKeypair();
   const startTimestamp = Math.floor(Date.now() / 1000);
   const durationDays = 7;
-  const contractAddresses = [CONTRACTS.vault, CONTRACTS.cToken, CONTRACTS.cUsdt];
+  const contractAddresses = [
+    CONTRACTS.vault,
+    CONTRACTS.cToken,
+    CONTRACTS.cUsdt,
+  ];
 
-  const eip712 = fhe.createEIP712(keypair.publicKey, contractAddresses, startTimestamp, durationDays);
+  const eip712 = fhe.createEIP712(
+    keypair.publicKey,
+    contractAddresses,
+    startTimestamp,
+    durationDays,
+  );
   const signature = await signTypedData({
     domain: eip712.domain as unknown as Record<string, unknown>,
-    types: { UserDecryptRequestVerification: eip712.types.UserDecryptRequestVerification } as Record<string, unknown>,
+    types: {
+      UserDecryptRequestVerification:
+        eip712.types.UserDecryptRequestVerification,
+    } as Record<string, unknown>,
     primaryType: "UserDecryptRequestVerification",
     message: eip712.message as unknown as Record<string, unknown>,
   });
@@ -158,7 +209,10 @@ export async function userDecrypt(
   const s = await getSession(userAddress, signTypedData);
   const fhe = await getFhevm();
   const results = await fhe.userDecrypt(
-    missing.map((p) => ({ handle: p.handle, contractAddress: p.contractAddress })),
+    missing.map((p) => ({
+      handle: p.handle,
+      contractAddress: p.contractAddress,
+    })),
     s.keypair.privateKey,
     s.keypair.publicKey,
     s.signature,
@@ -172,13 +226,18 @@ export async function userDecrypt(
     decryptedCache.set(p.handle, value);
     out.set(p.handle, value);
   }
+  cacheVersion++;
+  cacheListeners.forEach((l) => l());
   return out;
 }
 
 // Debug/testing hook: lets the console (and headless smoke tests) exercise the
 // SDK init + encryption path without going through the UI.
 if (typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>).__fhevm = { getFhevm, encryptAmount };
+  (window as unknown as Record<string, unknown>).__fhevm = {
+    getFhevm,
+    encryptAmount,
+  };
 }
 
 /** Publicly decrypts a handle (must be makePubliclyDecryptable on-chain). */
@@ -190,7 +249,9 @@ export async function publicDecrypt(handle: string): Promise<{
   const fhe = await getFhevm();
   const results = await fhe.publicDecrypt([handle]);
   return {
-    value: BigInt(results.clearValues[handle as `0x${string}`] as bigint | string),
+    value: BigInt(
+      results.clearValues[handle as `0x${string}`] as bigint | string,
+    ),
     abiEncodedClearValues: results.abiEncodedClearValues,
     decryptionProof: results.decryptionProof,
   };

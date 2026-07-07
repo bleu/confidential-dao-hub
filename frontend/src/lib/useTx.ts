@@ -4,7 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { usePublicClient, useWriteContract } from "wagmi";
 
-type WriteParams = Parameters<ReturnType<typeof useWriteContract>["writeContractAsync"]>[0];
+type WriteParams = Parameters<
+  ReturnType<typeof useWriteContract>["writeContractAsync"]
+>[0];
 
 /**
  * Sends a contract write, waits for the receipt, then invalidates all reads.
@@ -18,7 +20,10 @@ export function useTx() {
   const [error, setError] = useState<string | null>(null);
 
   const send = useCallback(
-    async (label: string, params: WriteParams | (() => Promise<WriteParams>)) => {
+    async (
+      label: string,
+      params: WriteParams | (() => Promise<WriteParams>),
+    ) => {
       setPending(label);
       setError(null);
       try {

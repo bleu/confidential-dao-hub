@@ -20,6 +20,21 @@ export function parseAmount(input: string): bigint {
   return BigInt(whole) * ONE + BigInt(frac.padEnd(6, "0") || "0");
 }
 
+/** Formats a 2-decimal price (210n -> "2.10"). */
+export function formatPrice(cents: bigint): string {
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
+}
+
+/** Parses a human price string ("2.1" -> 210n, 2-decimal fixed point). */
+export function parsePrice(input: string): bigint {
+  const trimmed = input.trim();
+  if (!/^\d+(\.\d{0,2})?$/.test(trimmed)) {
+    throw new Error("Enter a price with at most 2 decimals");
+  }
+  const [whole, frac = ""] = trimmed.split(".");
+  return BigInt(whole) * 100n + BigInt(frac.padEnd(2, "0") || "0");
+}
+
 export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }

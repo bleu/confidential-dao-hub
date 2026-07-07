@@ -3,7 +3,6 @@ import { deployments, ethers, fhevm } from "hardhat";
 const T = 10n ** 6n;
 const VAULT_FUNDING = 100_000n * T; // cUSDT escrowed for payouts
 const EPOCH_BUDGET = 1_000n * T; // encrypted buyback budget (cTOKEN)
-const PRICE = 2n; // 2 cUSDT per cTOKEN
 
 async function main() {
   await fhevm.initializeCLIApi();
@@ -34,11 +33,11 @@ async function main() {
   await fundTx.wait();
   console.log(`Funded: ${fundTx.hash}`);
 
-  console.log(`Opening epoch (encrypted budget ${EPOCH_BUDGET / T} cTOKEN, price ${PRICE})...`);
+  console.log(`Opening the pool (encrypted budget ${EPOCH_BUDGET / T} cTOKEN)...`);
   const encBudget = await fhevm.createEncryptedInput(vaultAddress, treasury.address).add64(EPOCH_BUDGET).encrypt();
-  const openTx = await vault.openEpoch(encBudget.handles[0], encBudget.inputProof, PRICE);
+  const openTx = await vault.openEpoch(encBudget.handles[0], encBudget.inputProof);
   await openTx.wait();
-  console.log(`Epoch ${await vault.currentEpochId()} open: ${openTx.hash}`);
+  console.log(`Window ${await vault.currentEpochId()} open: ${openTx.hash}`);
 }
 
 main().catch((error) => {

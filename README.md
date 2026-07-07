@@ -12,7 +12,7 @@ Protocols doing on-chain buybacks telegraph their orders. The budget, timing, an
 
 ## The idea
 
-A dark-pool-style buyback vault where the treasury buys its own token **directly from holders in sealed epochs**. The budget, individual offers, and fills are FHE-encrypted on-chain — nobody (including other sellers) can see how much is being bought or sold. After an epoch closes and a disclosure delay passes, **anyone** can trigger public decryption of the epoch's total: *confidential during execution, accountable afterward*.
+A **standing dark pool** where the treasury buys its own token directly from holders. The buyback budget, individual offers, fills, and each seller's price floor are FHE-encrypted on-chain — nobody (including other sellers) can see how much is being bought or sold, or at what limits. Orders rest in rolling settlement windows that anyone can settle at the oracle price once they expire; unspent budget carries over, and the treasury can top it up confidentially at any time — so an open window carries no information about actual demand. After a window settles and a disclosure delay passes, **anyone** can trigger public decryption of that window's total: *confidential during execution, accountable afterward*.
 
 ## How it works
 
@@ -21,23 +21,29 @@ A dark-pool-style buyback vault where the treasury buys its own token **directly
     │                                   │                                 │
     │ 1. fund vault with cUSDT          │                                 │
     │──────────────────────────────────▶│                                 │
-    │ 2. openEpoch(enc(budget), price)  │                                 │
-    │──────────────────────────────────▶│   3. setOperator(vault, 24h)    │
-    │                                   │◀────────────────────────────────│
-    │                                   │   4. submitOffer(enc(amount))   │
+    │ 2. openEpoch(enc(budget))         │                                 │
+    │    topUp(enc(amount)) any time    │   3. setOperator(vault, 24h)    │
+    │──────────────────────────────────▶│◀────────────────────────────────│
+    │                                   │   4. submitOffer(enc(amount),   │
+    │                                   │                  enc(minPrice)) │
     │                                   │◀────────────────────────────────│
     │                                   │   escrow cTOKEN, compute under FHE:
     │                                   │   fill      = min(offer, remaining)
     │                                   │   remaining = remaining − fill
-    │ 5. closeEpoch()                   │   total    += fill              │
-    │──────────────────────────────────▶│                                 │
-    │                                   │   6. claim(epoch)               │
+    │                                   │   total    += fill              │
+    │                                   │                                 │
+    │  5. rollEpoch() — anyone, once the window expires (owner: any time) │
+    │     snapshots oracle price, carries remaining budget to next window │
+    │                                   │                                 │
+    │                                   │   6. claim(window)              │
     │                                   │◀────────────────────────────────│
+    │                                   │   under FHE: fill counts only if
+    │                                   │   settlementPrice ≥ enc(minPrice)
     │                                   │   pay enc(fill × price) cUSDT   │
-    │                                   │   refund enc(offer − fill)      │
+    │                                   │   refund the rest in cTOKEN     │
     │                                   │                                 │
     │        7. after 5 min: requestDisclosure + finalizeDisclosure       │
-    │           (anyone) → plaintext epoch total, KMS-verified            │
+    │           (anyone) → plaintext window total, KMS-verified           │
 ```
 
 ### The `FHE.min` running-budget pattern
@@ -45,12 +51,18 @@ A dark-pool-style buyback vault where the treasury buys its own token **directly
 Fills are first-come-first-served against an **encrypted running budget** — the core trick that keeps every offer O(1) FHE operations, with no loops, no sorting, and no encrypted division:
 
 ```solidity
+// matching, at offer time:
 euint64 fill = FHE.min(offer, remaining);       // clamp to what's left (encrypted)
 remaining    = FHE.sub(remaining, fill);        // can't underflow: fill ≤ remaining
 totalFilled  = FHE.add(totalFilled, fill);
+
+// settlement, at claim time (settlementPrice is the public oracle snapshot):
+ebool   floorMet      = FHE.le(minPrice, settlementPrice);
+euint64 effectiveFill = FHE.select(floorMet, fill, zero);
+euint64 payout        = FHE.div(FHE.mul(effectiveFill, settlementPrice), 100);
 ```
 
-A seller whose offer exceeds the remaining budget is partially filled; once the budget is exhausted, later offers get zero fill — but **no one can tell which**, because offers, fills, and the budget are all ciphertexts. Failed conditions become no-ops instead of reverts (never branch on encrypted values).
+A seller whose offer exceeds the remaining budget is partially filled; once the budget is exhausted, later offers get zero fill — but **no one can tell which**, because offers, fills, and the budget are all ciphertexts. The same applies to price floors: a floor that misses the settlement price turns into a full refund, indistinguishably. Failed conditions become no-ops instead of reverts (never branch on encrypted values).
 
 The escrow uses the actual transferred amount returned by ERC-7984's `confidentialTransferFrom`, so an offer backed by insufficient balance escrows 0 and fills 0 — you can't inflate the total with tokens you don't have.
 
@@ -58,13 +70,14 @@ The escrow uses the actual transferred amount returned by ERC-7984's `confidenti
 
 | Hidden (encrypted) | Public |
 |---|---|
-| Epoch budget | Reference price per epoch |
+| Buyback budget, top-ups, carryover | Oracle price & per-window settlement price |
 | Remaining budget | That an address submitted an offer (tx metadata) |
-| Individual offer amounts | Number of offers, epoch open/close timing |
-| Individual fills & payouts | Disclosed epoch totals (after delay, by design) |
-| Cumulative bought (until disclosure) | Contract addresses, operator approvals |
+| Individual offer amounts | Number of offers, window open/settle timing |
+| Individual price floors (and whether they were met) | Disclosed window totals (after delay, by design) |
+| Individual fills & payouts | Contract addresses, operator approvals |
+| Cumulative bought (until disclosure) | |
 
-**Honest caveats:** participation metadata is visible — observers can see *who* interacted with the vault and *when*; only the amounts are hidden. Other limitations: fills are first-come-first-served (no pro-rata), one offer per seller per epoch, no offer cancellation, and treasury solvency is not verified on-chain (if the vault is underfunded, claims transfer 0 cUSDT rather than reverting — ERC-7984 transfers are all-or-nothing and never revert on insufficient balance).
+**Honest caveats:** participation metadata is visible — observers can see *who* interacted with the vault and *when*; only amounts and floors are hidden. Other limitations: fills are first-come-first-served (no pro-rata), one offer per seller per window, no offer cancellation, budget reserved by a fill whose floor later fails is not recycled within that window, disclosed totals are a snapshot at disclosure time, and treasury solvency is not verified on-chain (if the vault is underfunded, claims transfer 0 cUSDT rather than reverting — ERC-7984 transfers are all-or-nothing and never revert on insufficient balance). The price oracle is an owner-set mock behind an interface a real feed adapter would implement.
 
 ## Contracts (Sepolia)
 
@@ -72,19 +85,20 @@ The escrow uses the actual transferred amount returned by ERC-7984's `confidenti
 |---|---|
 | `ConfidentialGovToken` (cTOKEN) | [`0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f`](https://sepolia.etherscan.io/address/0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f) |
 | `ConfidentialUSDT` mock (cUSDT) | [`0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA`](https://sepolia.etherscan.io/address/0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA) |
-| `BuybackVault` | [`0x84b187a0D9Dd071d18Fb89b5c68c320Ca14B96D4`](https://sepolia.etherscan.io/address/0x84b187a0D9Dd071d18Fb89b5c68c320Ca14B96D4) |
+| `MockPriceOracle` | [`0x9521848F454961dee8B42d51f0269Bd1F56B84F8`](https://sepolia.etherscan.io/address/0x9521848F454961dee8B42d51f0269Bd1F56B84F8) |
+| `BuybackVault` | [`0x27289cA07948178fbA7e08b3a7EBe868889621f2`](https://sepolia.etherscan.io/address/0x27289cA07948178fbA7e08b3a7EBe868889621f2) |
 
 Both tokens are ERC-7984 confidential tokens (euint64 amounts, 6 decimals) with an open capped `faucet()` for the demo. The payment token is a self-deployed mock (the official Sepolia cUSDT wrapper requires wrapping an underlying ERC-20; the vault takes the token address as a constructor param, so it can be swapped).
 
-Price is a plaintext integer: **cUSDT base units per cTOKEN base unit** (`price = 2` ⇒ 2 cUSDT per cTOKEN), so `payout = fill × price` needs no FHE division. Budgets are FHE-clamped to 1e15 and price capped at 1000, so the payout can never overflow euint64.
+Prices are 2-decimal fixed point (`210` = 2.10 cUSDT per cTOKEN): `payout = fill × price / 100` uses only scalar FHE mul/div. Budgets are FHE-clamped to 1e15 and the settlement price capped at 10,000 (100.00), so the payout can never overflow euint64. Settlement windows default to 15 minutes on the demo deployment.
 
 ## Repository layout
 
 ```
 confidential-buybacks/
 ├── contracts/        # Hardhat project (Zama FHEVM template)
-│   ├── contracts/    # ConfidentialGovToken.sol, BuybackVault.sol
-│   ├── test/         # 16 tests on the FHEVM mock, incl. full disclosure proof flow
+│   ├── contracts/    # ConfidentialGovToken.sol, BuybackVault.sol, MockPriceOracle.sol
+│   ├── test/         # 21 tests on the FHEVM mock, incl. full disclosure proof flow
 │   ├── deploy/       # hardhat-deploy script
 │   └── scripts/      # seed.ts (fund vault + open epoch), verify-state.ts
 └── frontend/         # Next.js app (wagmi + viem + Zama relayer SDK)
@@ -98,7 +112,7 @@ Requires Node ≥ 20.
 # Contracts
 cd contracts
 npm install
-npm test                                  # 16 tests on the FHEVM mock
+npm test                                  # 21 tests on the FHEVM mock
 
 # Deploy to Sepolia (.env: PRIVATE_KEY, RPC_URL; optional CUSDT_ADDRESS)
 npx hardhat deploy --network sepolia
@@ -110,7 +124,7 @@ npm install
 npm run dev
 ```
 
-Demo flow with two wallets: **Seller** — faucet cTOKEN → approve vault as operator (24 h) → submit encrypted offer. **Treasury** — decrypt remaining/total, close epoch. **Seller** — decrypt fill, claim payout + refund. **Anyone** — after 5 minutes, request + publish the epoch total on the transparency tab.
+Demo flow with two wallets: **Seller** — faucet cTOKEN → approve vault as operator (24 h) → submit encrypted offer with a private price floor. **Treasury** — decrypt remaining/total, move the mock oracle, settle the window. **Seller** — decrypt fill + floor, claim payout + refund. **Anyone** — after 5 minutes, request + publish the window total on the transparency tab.
 
 ## Stack
 
