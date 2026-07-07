@@ -4,6 +4,8 @@
 
 **Live demo:** _(Vercel URL here)_ · **Network:** Sepolia only
 
+![ConfidentialBuybacks — treasury view with encrypted epoch state](docs/screenshot.png)
+
 ## The problem
 
 Protocols doing on-chain buybacks telegraph their orders. The budget, timing, and every fill are public the moment the program starts — so MEV bots front-run the buys, and the market times its exits against the treasury. The treasury systematically overpays for its own token.
