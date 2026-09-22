@@ -38,3 +38,20 @@ The minimum price a seller accepts for their offered tokens.
 
 **Disclosure**:
 The publication of previously confidential information to everyone; the eligible information and timing depend on the operation.
+
+## Vesting
+
+**Grant**:
+A treasury-funded token allocation owed to a fixed recipient according to a vesting schedule.
+
+**Vesting**:
+The accumulation of a recipient's entitlement to a grant's tokens over time.
+
+**Cliff**:
+The date before which no grant tokens are vested; reaching it unlocks the entitlement accumulated from the schedule's start.
+
+**Claim**:
+A recipient's withdrawal of vested tokens that have not already been paid.
+
+**Revocation**:
+The termination of future vesting for a revocable grant, returning unvested tokens to the treasury while preserving the recipient's vested entitlement.
