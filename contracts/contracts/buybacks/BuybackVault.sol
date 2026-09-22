@@ -6,7 +6,7 @@ import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 import {IERC7984} from "@openzeppelin/confidential-contracts/interfaces/IERC7984.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IPriceOracle} from "./MockPriceOracle.sol";
+import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 
 /// @title BuybackVault
 /// @notice A standing dark pool for protocol buybacks on Zama FHEVM. The treasury
@@ -179,11 +179,7 @@ contract BuybackVault is ZamaEthereumConfig, Ownable {
     ///      effective offer is the amount actually transferred by the token
     ///      (0 if the seller's balance is insufficient — ERC-7984 all-or-nothing).
     ///      `minPriceExt` is 2dp (210 = 2.10 cUSDT); encrypt 0 to accept any price.
-    function submitOffer(
-        externalEuint64 amountExt,
-        externalEuint64 minPriceExt,
-        bytes calldata inputProof
-    ) external {
+    function submitOffer(externalEuint64 amountExt, externalEuint64 minPriceExt, bytes calldata inputProof) external {
         require(hasOpenEpoch, "vault: no open epoch");
         if (block.timestamp >= _epochs[currentEpochId].endsAt) rollEpoch();
 

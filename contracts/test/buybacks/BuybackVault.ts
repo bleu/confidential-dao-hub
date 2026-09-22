@@ -4,7 +4,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers, fhevm } from "hardhat";
 
-import { BuybackVault, ConfidentialGovToken, MockPriceOracle } from "../types";
+import { BuybackVault, ConfidentialGovToken, MockPriceOracle } from "../../types";
 
 const T = 10n ** 6n; // 1 token, 6 decimals
 const INITIAL_SUPPLY = 1_000_000n * T;
@@ -223,9 +223,9 @@ describe("BuybackVault", function () {
       await expect(vault.connect(signers.treasury).setEpochDuration(59)).to.be.revertedWith("vault: bad duration");
 
       const enc3 = await encrypt64(vaultAddress, signers.treasury, [1n * T]);
-      await expect(
-        vault.connect(signers.treasury).openEpoch(enc3.handles[0], enc3.inputProof),
-      ).to.be.revertedWith("vault: epoch already open");
+      await expect(vault.connect(signers.treasury).openEpoch(enc3.handles[0], enc3.inputProof)).to.be.revertedWith(
+        "vault: epoch already open",
+      );
     });
   });
 

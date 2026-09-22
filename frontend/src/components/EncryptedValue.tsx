@@ -3,13 +3,8 @@
 import { useState, useSyncExternalStore } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 
-import {
-  getCachedDecryption,
-  getDecryptionVersion,
-  subscribeDecryptions,
-  userDecrypt,
-  type SignTypedDataFn,
-} from "@/lib/fhevm";
+import type { SignTypedDataFn } from "@/lib/decryption-client";
+import { useDecryption } from "@/lib/decryption-context";
 import { formatAmount } from "@/lib/format";
 
 /**
@@ -33,18 +28,19 @@ export function EncryptedValue({
 }) {
   const { address } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const decryption = useDecryption();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   // Re-render whenever any decryption lands (payout cells depend on siblings).
   useSyncExternalStore(
-    subscribeDecryptions,
-    getDecryptionVersion,
-    getDecryptionVersion,
+    decryption.subscribe,
+    decryption.getVersion,
+    decryption.getVersion,
   );
 
   if (!handle) return <span className="text-zinc-600">—</span>;
 
-  const cached = getCachedDecryption(handle);
+  const cached = decryption.getCachedDecryption(handle, contractAddress);
   if (cached !== undefined) {
     return (
       <span className="font-mono text-yellow-300">
@@ -65,9 +61,8 @@ export function EncryptedValue({
     setBusy(true);
     setFailed(false);
     try {
-      await userDecrypt(
+      await decryption.userDecrypt(
         [{ handle, contractAddress }],
-        address,
         signTypedDataAsync as unknown as SignTypedDataFn,
       );
     } catch {

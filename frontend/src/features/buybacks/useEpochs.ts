@@ -2,7 +2,7 @@
 
 import { useReadContract, useReadContracts } from "wagmi";
 
-import { CONTRACTS, vaultAbi } from "@/config/contracts";
+import { CONTRACTS, vaultAbi } from "@/features/buybacks/contracts";
 
 export type EpochData = {
   budget: `0x${string}`;

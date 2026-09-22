@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 
 import { EncryptedValue } from "@/components/EncryptedValue";
-import { CONTRACTS, oracleAbi, vaultAbi } from "@/config/contracts";
+import { CONTRACTS, oracleAbi, vaultAbi } from "@/features/buybacks/contracts";
 import { encryptAmount } from "@/lib/fhevm";
 import {
   formatPrice,
@@ -12,7 +12,7 @@ import {
   parseAmount,
   parsePrice,
 } from "@/lib/format";
-import { useEpochs } from "@/lib/useEpochs";
+import { useEpochs } from "@/features/buybacks/useEpochs";
 import { useTx } from "@/lib/useTx";
 
 export function TreasuryPanel() {

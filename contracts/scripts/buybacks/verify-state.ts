@@ -11,7 +11,7 @@ async function main() {
   console.log(`hasOpenEpoch: ${await vault.hasOpenEpoch()}`);
   const epochId = await vault.currentEpochId();
   const e = await vault.getEpoch(epochId);
-  console.log(`epoch ${epochId}: price=${e.price} open=${e.open} openedAt=${e.openedAt}`);
+  console.log(`epoch ${epochId}: settlementPrice=${e.settlementPrice} open=${e.open} openedAt=${e.openedAt}`);
 
   const budget = await fhevm.userDecryptEuint(FhevmType.euint64, e.budget, vaultDeployment.address, treasury);
   const remaining = await fhevm.userDecryptEuint(FhevmType.euint64, e.remaining, vaultDeployment.address, treasury);

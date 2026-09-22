@@ -1,16 +1,16 @@
 {
-  "name": "fhevm-hardhat-template",
-  "description": "Hardhat-based template for developing FHEVM Solidity smart contracts",
+  "name": "confidential-ops-hub-contracts",
+  "description": "Independent confidential DAO operations contracts on Zama FHEVM",
   "version": "0.4.1",
   "engines": {
     "node": ">=20",
     "npm": ">=7.0.0"
   },
   "license": "BSD-3-Clause-Clear",
-  "homepage": "https://github.com/zama-ai/fhevm-hardhat-template/README.md",
+  "homepage": "https://github.com/bleu/confidential-dao-hub",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zama-ai/fhevm-hardhat-template.git"
+    "url": "git+https://github.com/bleu/confidential-dao-hub.git"
   },
   "keywords": [
     "fhevm",

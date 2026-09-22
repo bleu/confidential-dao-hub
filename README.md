@@ -1,131 +1,100 @@
-# ConfidentialBuybacks
+# Confidential Ops Hub
 
-**Dark-pool protocol buybacks on [Zama FHEVM](https://docs.zama.org/protocol).** Built for the Zama Developer Program Builder Track. PoC/MVP quality — not audited, not production.
+Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM](https://docs.zama.org/protocol). The hub brings independent feature contracts into one frontend, starting with the existing buybacks prototype.
 
-**Live demo:** _(Vercel URL here)_ · **Network:** Sepolia only
+**Network:** Sepolia · **Status:** PoC, not audited or production-ready
 
-![ConfidentialBuybacks — treasury view with encrypted epoch state](docs/screenshot.png)
+![Confidential Ops Hub — operations catalog](docs/hub.png)
 
-## The problem
+## Operations
 
-Protocols doing on-chain buybacks telegraph their orders. The budget, timing, and every fill are public the moment the program starts — so MEV bots front-run the buys, and the market times its exits against the treasury. The treasury systematically overpays for its own token.
+| Feature                               | App status               | Development priority | Decision record                               |
+| ------------------------------------- | ------------------------ | -------------------- | --------------------------------------------- |
+| [Buybacks](docs/features/buybacks.md) | Available at `/buybacks` | Implemented          | [ADR-0002](docs/adr/0002-buybacks.md)         |
+| Payroll                               | Soon                     | Todo                 | [ADR-0003](docs/adr/0003-payroll.md)          |
+| Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
+| Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
+| Vesting                               | Soon                     | Todo                 | [ADR-0006](docs/adr/0006-vesting.md)          |
+| Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
+| Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-## The idea
+The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries describe future work and have no transaction actions. Future-feature ADRs are proposals with unresolved requirements.
 
-A **standing dark pool** where the treasury buys its own token directly from holders. The buyback budget, individual offers, fills, and each seller's price floor are FHE-encrypted on-chain — nobody (including other sellers) can see how much is being bought or sold, or at what limits. Orders rest in rolling settlement windows that anyone can settle at the oracle price once they expire; unspent budget carries over, and the treasury can top it up confidentially at any time — so an open window carries no information about actual demand. After a window settles and a disclosure delay passes, **anyone** can trigger public decryption of that window's total: *confidential during execution, accountable afterward*.
+## Architecture
 
-## How it works
-
-```
- Treasury                          BuybackVault                        Sellers
-    │                                   │                                 │
-    │ 1. fund vault with cUSDT          │                                 │
-    │──────────────────────────────────▶│                                 │
-    │ 2. openEpoch(enc(budget))         │                                 │
-    │    topUp(enc(amount)) any time    │   3. setOperator(vault, 24h)    │
-    │──────────────────────────────────▶│◀────────────────────────────────│
-    │                                   │   4. submitOffer(enc(amount),   │
-    │                                   │                  enc(minPrice)) │
-    │                                   │◀────────────────────────────────│
-    │                                   │   escrow cTOKEN, compute under FHE:
-    │                                   │   fill      = min(offer, remaining)
-    │                                   │   remaining = remaining − fill
-    │                                   │   total    += fill              │
-    │                                   │                                 │
-    │  5. rollEpoch() — anyone, once the window expires (owner: any time) │
-    │     snapshots oracle price, carries remaining budget to next window │
-    │                                   │                                 │
-    │                                   │   6. claim(window)              │
-    │                                   │◀────────────────────────────────│
-    │                                   │   under FHE: fill counts only if
-    │                                   │   settlementPrice ≥ enc(minPrice)
-    │                                   │   pay enc(fill × price) cUSDT   │
-    │                                   │   refund the rest in cTOKEN     │
-    │                                   │                                 │
-    │        7. after 5 min: requestDisclosure + finalizeDisclosure       │
-    │           (anyone) → plaintext window total, KMS-verified           │
+```text
+Confidential Ops Hub frontend
+├── Shared layout, wallet connection, encryption and transaction utilities
+├── Buybacks feature → existing BuybackVault + token/oracle dependencies
+└── Future features → independent contracts
 ```
 
-### The `FHE.min` running-budget pattern
+Features own their contract interfaces, deployment configuration, and business logic. Private decryption sessions are scoped to a wallet, chain, and explicit feature contract set; changing scope or wallet replaces private state. The shared FHE helper has no buyback-address dependency.
 
-Fills are first-come-first-served against an **encrypted running budget** — the core trick that keeps every offer O(1) FHE operations, with no loops, no sorting, and no encrypted division:
+Each feature defines its own privacy policy. Buybacks encrypts amounts and seller price floors while participation metadata stays public, and supports delayed public disclosure of aggregate totals. That disclosure policy is not automatically applied to payroll or other features.
 
-```solidity
-// matching, at offer time:
-euint64 fill = FHE.min(offer, remaining);       // clamp to what's left (encrypted)
-remaining    = FHE.sub(remaining, fill);        // can't underflow: fill ≤ remaining
-totalFilled  = FHE.add(totalFilled, fill);
+The current frontend uses one configured Sepolia deployment. DAO onboarding, deployment discovery, shared treasury custody, and organization-wide permissions are future decisions. See [ADR-0001](docs/adr/0001-independent-feature-contracts.md).
 
-// settlement, at claim time (settlementPrice is the public oracle snapshot):
-ebool   floorMet      = FHE.le(minPrice, settlementPrice);
-euint64 effectiveFill = FHE.select(floorMet, fill, zero);
-euint64 payout        = FHE.div(FHE.mul(effectiveFill, settlementPrice), 100);
+## Repository
+
+```text
+frontend/src/
+  app/                      # Hub home, /buybacks, shared layout and providers
+  components/               # Shared shell, wallet button, encrypted values
+  features/buybacks/        # Buyback panels, epoch reads, addresses and ABIs
+  lib/                      # Wallet, FHE, decryption, transaction utilities
+contracts/
+  contracts/buybacks/        # BuybackVault and oracle interface
+  contracts/mocks/           # Demo tokens and price oracle
+  test/buybacks/             # Existing contract regression suite
+  deploy/buybacks.ts         # Buyback deployment with its existing identity
+  scripts/buybacks/          # Seed and state-verification scripts
+CONTEXT.md                   # Domain glossary
+docs/adr/                    # Accepted and proposed architectural decisions
+docs/features/               # Feature behavior and operational details
+docs/agents/                 # Linear, triage, and domain-doc skill conventions
 ```
 
-A seller whose offer exceeds the remaining budget is partially filled; once the budget is exhausted, later offers get zero fill — but **no one can tell which**, because offers, fills, and the budget are all ciphertexts. The same applies to price floors: a floor that misses the settlement price turns into a full refund, indistinguishably. Failed conditions become no-ops instead of reverts (never branch on encrypted values).
+## Development
 
-The escrow uses the actual transferred amount returned by ERC-7984's `confidentialTransferFrom`, so an offer backed by insufficient balance escrows 0 and fills 0 — you can't inflate the total with tokens you don't have.
+Use Node **22.13 or newer** (Node 22 LTS recommended), npm, and an injected wallet on Sepolia for transaction flows. The frontend's unit tests use Node's TypeScript stripping support.
 
-## Privacy model
-
-| Hidden (encrypted) | Public |
-|---|---|
-| Buyback budget, top-ups, carryover | Oracle price & per-window settlement price |
-| Remaining budget | That an address submitted an offer (tx metadata) |
-| Individual offer amounts | Number of offers, window open/settle timing |
-| Individual price floors (and whether they were met) | Disclosed window totals (after delay, by design) |
-| Individual fills & payouts | Contract addresses, operator approvals |
-| Cumulative bought (until disclosure) | |
-
-**Honest caveats:** participation metadata is visible — observers can see *who* interacted with the vault and *when*; only amounts and floors are hidden. Other limitations: fills are first-come-first-served (no pro-rata), one offer per seller per window, no offer cancellation, budget reserved by a fill whose floor later fails is not recycled within that window, disclosed totals are a snapshot at disclosure time, and treasury solvency is not verified on-chain (if the vault is underfunded, claims transfer 0 cUSDT rather than reverting — ERC-7984 transfers are all-or-nothing and never revert on insufficient balance). The price oracle is an owner-set mock behind an interface a real feed adapter would implement.
-
-## Contracts (Sepolia)
-
-| Contract | Address |
-|---|---|
-| `ConfidentialGovToken` (cTOKEN) | [`0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f`](https://sepolia.etherscan.io/address/0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f) |
-| `ConfidentialUSDT` mock (cUSDT) | [`0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA`](https://sepolia.etherscan.io/address/0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA) |
-| `MockPriceOracle` | [`0x9521848F454961dee8B42d51f0269Bd1F56B84F8`](https://sepolia.etherscan.io/address/0x9521848F454961dee8B42d51f0269Bd1F56B84F8) |
-| `BuybackVault` | [`0x27289cA07948178fbA7e08b3a7EBe868889621f2`](https://sepolia.etherscan.io/address/0x27289cA07948178fbA7e08b3a7EBe868889621f2) |
-
-Both tokens are ERC-7984 confidential tokens (euint64 amounts, 6 decimals) with an open capped `faucet()` for the demo. The payment token is a self-deployed mock (the official Sepolia cUSDT wrapper requires wrapping an underlying ERC-20; the vault takes the token address as a constructor param, so it can be swapped).
-
-Prices are 2-decimal fixed point (`210` = 2.10 cUSDT per cTOKEN): `payout = fill × price / 100` uses only scalar FHE mul/div. Budgets are FHE-clamped to 1e15 and the settlement price capped at 10,000 (100.00), so the payout can never overflow euint64. Settlement windows default to 15 minutes on the demo deployment.
-
-## Repository layout
-
-```
-confidential-buybacks/
-├── contracts/        # Hardhat project (Zama FHEVM template)
-│   ├── contracts/    # ConfidentialGovToken.sol, BuybackVault.sol, MockPriceOracle.sol
-│   ├── test/         # 21 tests on the FHEVM mock, incl. full disclosure proof flow
-│   ├── deploy/       # hardhat-deploy script
-│   └── scripts/      # seed.ts (fund vault + open epoch), verify-state.ts
-└── frontend/         # Next.js app (wagmi + viem + Zama relayer SDK)
-```
-
-## Setup
-
-Requires Node ≥ 20.
+From the repository root:
 
 ```bash
-# Contracts
 cd contracts
-npm install
-npm test                                  # 21 tests on the FHEVM mock
+npm ci
+npm run compile
+npm test
 
-# Deploy to Sepolia (.env: PRIVATE_KEY, RPC_URL; optional CUSDT_ADDRESS)
-npx hardhat deploy --network sepolia
-npx hardhat run scripts/seed.ts --network sepolia    # fund vault + open demo epoch
-
-# Frontend (contract addresses live in src/config/contracts.ts)
 cd ../frontend
-npm install
+npm ci
+npm test
+npm run lint
+npm run build
 npm run dev
 ```
 
-Demo flow with two wallets: **Seller** — faucet cTOKEN → approve vault as operator (24 h) → submit encrypted offer with a private price floor. **Treasury** — decrypt remaining/total, move the mock oracle, settle the window. **Seller** — decrypt fill + floor, claim payout + refund. **Anyone** — after 5 minutes, request + publish the window total on the transparency tab.
+Visit `http://localhost:3000` for the hub and `/buybacks` for the existing demo. Walletless users can browse the catalog and public buyback views.
 
-## Stack
+The buyback configuration lives in `frontend/src/features/buybacks/contracts.ts`. Existing addresses and ABI behavior are preserved. See the [buybacks guide](docs/features/buybacks.md) for recorded addresses, privacy details, known limitations, and the two-wallet demo flow.
 
-`@fhevm/solidity` 0.11 · `@openzeppelin/confidential-contracts` 0.5 (ERC-7984) · `@fhevm/hardhat-plugin` mock testing · `@zama-fhe/relayer-sdk` 0.4 (client-side encryption, `userDecrypt` with EIP-712, `publicDecrypt` + on-chain `FHE.checkSignatures`) · Next.js 15, wagmi/viem.
+## Buyback deployment
+
+From `contracts/`, configure `PRIVATE_KEY` and `RPC_URL` in `.env` for Sepolia; `CUSDT_ADDRESS`, `ORACLE_PRICE`, and `EPOCH_DURATION` are optional overrides.
+
+```bash
+npx hardhat deploy --tags ConfidentialBuybacks --network sepolia
+npx hardhat run scripts/buybacks/seed.ts --network sepolia
+npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
+```
+
+The seed script is for the default mock payment-token deployment. When using an external `CUSDT_ADDRESS`, fund the vault through that token's supported flow instead. Deployment is an explicit operator action; moving contract source files does not migrate the existing deployment.
+
+## Extending the hub
+
+Add frontend behavior under `frontend/src/features/<feature>/` with a route in `app/`. Keep contract sources, tests, and deployment scripts grouped by feature. Reuse the shared providers and utilities, and supply an explicit `DecryptionProvider` scope for private reads. Use mocks only for development/demo dependencies.
+
+Before implementation, resolve the feature's proposed ADR, including authorization, funding/settlement, and privacy. Define who may decrypt each value and whether anything is publicly disclosed. Record domain terms in [CONTEXT.md](CONTEXT.md).
+
+Work is tracked in the configured [Linear project and milestone](https://linear.app/bleu-builders/project/web3-deals-a5e6ddb5d475/overview#milestone-6ef4fdcd-b796-4111-b482-9485d74579b2). [Agent conventions](docs/agents/issue-tracker.md) describe the workflow; configuration alone does not create Linear issues or labels.

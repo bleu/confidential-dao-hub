@@ -3,10 +3,7 @@ pragma solidity ^0.8.27;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @notice Price of 1 cTOKEN in cUSDT, 2-decimal fixed point (200 = 2.00 cUSDT).
-interface IPriceOracle {
-    function price() external view returns (uint64);
-}
+import {IPriceOracle} from "../buybacks/interfaces/IPriceOracle.sol";
 
 /// @title MockPriceOracle
 /// @notice PoC stand-in for a real price feed (Chainlink/TWAP adapter would

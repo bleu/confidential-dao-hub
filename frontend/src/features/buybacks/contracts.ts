@@ -49,3 +49,9 @@ export const tokenAbi = parseAbi([
   "function confidentialBalanceOf(address account) view returns (bytes32)",
   "function symbol() view returns (string)",
 ]);
+
+/** Contract permissions requested by the buybacks feature's decryption session. */
+export const BUYBACK_DECRYPTION_SCOPE = {
+  chainId: 11155111,
+  contractAddresses: [CONTRACTS.vault, CONTRACTS.cToken, CONTRACTS.cUsdt],
+} as const;

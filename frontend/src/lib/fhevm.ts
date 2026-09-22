@@ -2,28 +2,16 @@
 
 import { toHex } from "viem";
 
-import { CONTRACTS } from "@/config/contracts";
-
-/**
- * Thin client-side wrapper around @zama-fhe/relayer-sdk.
- *
- * - The SDK (WASM) is loaded lazily on first use, browser-only, via the
- *   prebundled `/bundle` entry (the official recommendation for SSR frameworks).
- * - userDecrypt requires an EIP-712 signature; we sign ONCE per session for all
- *   three contracts and cache the keypair + signature.
- * - Decrypted values are cached by handle for the session (handles are
- *   immutable ciphertexts, so this is always safe).
+/** Browser-only SDK loading, encryption, and public disclosure.
+ * Private decryption state belongs to a feature's DecryptionProvider.
  */
-
-const ZERO_HANDLE =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
 const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 // Official UMD build; the package's `/bundle` entry is just a re-export of
 // window.relayerSDK, so the CDN script must load first (documented SSR setup).
 const SDK_CDN_URL =
   "https://cdn.zama.org/relayer-sdk-js/0.4.4/relayer-sdk-js.umd.cjs";
 
-type FhevmInstance = Awaited<
+export type FhevmInstance = Awaited<
   ReturnType<typeof import("@zama-fhe/relayer-sdk/web").createInstance>
 >;
 
@@ -93,142 +81,6 @@ export async function encryptAmount(
     value,
   ]);
   return { handle: handles[0], proof };
-}
-
-// ---------------------------------------------------------------------------
-// userDecrypt session (one EIP-712 signature covers all our contracts)
-// ---------------------------------------------------------------------------
-
-export type SignTypedDataFn = (args: {
-  domain: Record<string, unknown>;
-  types: Record<string, unknown>;
-  primaryType: string;
-  message: Record<string, unknown>;
-}) => Promise<`0x${string}`>;
-
-type DecryptSession = {
-  userAddress: string;
-  keypair: { publicKey: string; privateKey: string };
-  signature: string;
-  startTimestamp: number;
-  durationDays: number;
-  contractAddresses: string[];
-};
-
-let session: DecryptSession | null = null;
-const decryptedCache = new Map<string, bigint>();
-
-// Components subscribe so every consumer re-renders when any handle decrypts
-// (payout cells derive from two handles decrypted by sibling components).
-let cacheVersion = 0;
-const cacheListeners = new Set<() => void>();
-
-export function subscribeDecryptions(listener: () => void): () => void {
-  cacheListeners.add(listener);
-  return () => cacheListeners.delete(listener);
-}
-
-export function getDecryptionVersion(): number {
-  return cacheVersion;
-}
-
-export function getCachedDecryption(handle: string): bigint | undefined {
-  if (handle === ZERO_HANDLE) return 0n;
-  return decryptedCache.get(handle);
-}
-
-async function getSession(
-  userAddress: string,
-  signTypedData: SignTypedDataFn,
-): Promise<DecryptSession> {
-  if (
-    session &&
-    session.userAddress.toLowerCase() === userAddress.toLowerCase()
-  )
-    return session;
-
-  const fhe = await getFhevm();
-  const keypair = fhe.generateKeypair();
-  const startTimestamp = Math.floor(Date.now() / 1000);
-  const durationDays = 7;
-  const contractAddresses = [
-    CONTRACTS.vault,
-    CONTRACTS.cToken,
-    CONTRACTS.cUsdt,
-  ];
-
-  const eip712 = fhe.createEIP712(
-    keypair.publicKey,
-    contractAddresses,
-    startTimestamp,
-    durationDays,
-  );
-  const signature = await signTypedData({
-    domain: eip712.domain as unknown as Record<string, unknown>,
-    types: {
-      UserDecryptRequestVerification:
-        eip712.types.UserDecryptRequestVerification,
-    } as Record<string, unknown>,
-    primaryType: "UserDecryptRequestVerification",
-    message: eip712.message as unknown as Record<string, unknown>,
-  });
-
-  session = {
-    userAddress,
-    keypair,
-    signature: signature.replace("0x", ""),
-    startTimestamp,
-    durationDays,
-    contractAddresses,
-  };
-  return session;
-}
-
-/** Clears the per-user decryption session (e.g. on account change). */
-export function resetSession() {
-  session = null;
-}
-
-/**
- * Decrypts euint64 handles for the connected user. The caller must have ACL
- * access to each handle (granted by the contracts via FHE.allow).
- */
-export async function userDecrypt(
-  pairs: { handle: string; contractAddress: string }[],
-  userAddress: string,
-  signTypedData: SignTypedDataFn,
-): Promise<Map<string, bigint>> {
-  const out = new Map<string, bigint>();
-  const missing = pairs.filter((p) => {
-    const cached = getCachedDecryption(p.handle);
-    if (cached !== undefined) out.set(p.handle, cached);
-    return cached === undefined;
-  });
-  if (missing.length === 0) return out;
-
-  const s = await getSession(userAddress, signTypedData);
-  const fhe = await getFhevm();
-  const results = await fhe.userDecrypt(
-    missing.map((p) => ({
-      handle: p.handle,
-      contractAddress: p.contractAddress,
-    })),
-    s.keypair.privateKey,
-    s.keypair.publicKey,
-    s.signature,
-    s.contractAddresses,
-    s.userAddress,
-    s.startTimestamp,
-    s.durationDays,
-  );
-  for (const p of missing) {
-    const value = BigInt(results[p.handle as `0x${string}`] as bigint | string);
-    decryptedCache.set(p.handle, value);
-    out.set(p.handle, value);
-  }
-  cacheVersion++;
-  cacheListeners.forEach((l) => l());
-  return out;
 }
 
 // Debug/testing hook: lets the console (and headless smoke tests) exercise the
