@@ -18,7 +18,7 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries describe future work and have no transaction actions. Future-feature ADRs are proposals with unresolved requirements.
+The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries describe future work and have no transaction actions. Payroll and vesting have accepted designs but are not implemented; the other future-feature ADRs remain proposed.
 
 ## Architecture
 
@@ -95,6 +95,6 @@ The seed script is for the default mock payment-token deployment. When using an 
 
 Add frontend behavior under `frontend/src/features/<feature>/` with a route in `app/`. Keep contract sources, tests, and deployment scripts grouped by feature. Reuse the shared providers and utilities, and supply an explicit `DecryptionProvider` scope for private reads. Use mocks only for development/demo dependencies.
 
-Before implementation, resolve the feature's proposed ADR, including authorization, funding/settlement, and privacy. Define who may decrypt each value and whether anything is publicly disclosed. Record domain terms in [CONTEXT.md](CONTEXT.md).
+Before implementation, resolve the feature's ADR, including authorization, funding/settlement, and privacy. Define who may decrypt each value and whether anything is publicly disclosed. Record domain terms in [CONTEXT.md](CONTEXT.md). Follow the contracts, deploy, design, and frontend implementation stages in [ADR-0009](docs/adr/0009-feature-delivery-stages.md).
 
 Work is tracked in the configured [Linear project and milestone](https://linear.app/bleu-builders/project/web3-deals-a5e6ddb5d475/overview#milestone-6ef4fdcd-b796-4111-b482-9485d74579b2). [Agent conventions](docs/agents/issue-tracker.md) describe the workflow; configuration alone does not create Linear issues or labels.
