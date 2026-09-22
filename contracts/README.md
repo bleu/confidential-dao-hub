@@ -1,16 +1,15 @@
 # Confidential Ops Hub contracts
 
-One Hardhat project containing independent feature contracts. Buybacks is currently the only implemented feature; future
-contracts are not scaffolded with empty implementations.
+One Hardhat project containing independent feature contracts. Buybacks has a configured Sepolia deployment. Payroll has a caller-funded confidential multisend contract and local tests; deployment remains pending. Other future contracts are not scaffolded with empty implementations.
 
 - `contracts/buybacks/`: existing `BuybackVault` and its `IPriceOracle` interface.
-- `contracts/mocks/`: mintable demo confidential token and owner-set price oracle.
+- `contracts/payroll/`: permissionless `ConfidentialMultisend` with caller-funded ERC-7984 payments.
+- `contracts/mocks/`: mintable demo confidential token, owner-set price oracle, and test tokens.
 - `test/buybacks/`: FHEVM mock regression tests.
+- `test/payroll/`: multisend payment, failure, privacy, and encrypted-computation limit tests.
 - `deploy/buybacks.ts`: existing deployment names, tag, and identifier preserved.
 - `scripts/buybacks/`: demo funding/initialization and state verification.
 
-See the [root README](../README.md) for commands and the [buybacks guide](../docs/features/buybacks.md) for behavior,
-recorded deployments, and known limitations. Run `npm ci`, `npm run compile`, and `npm test` from this directory.
+See the [root README](../README.md) for setup, the [buybacks guide](../docs/features/buybacks.md) for the existing deployment, and the [payroll guide](../docs/features/payroll.md) for the multisend interface and token requirements. Run `npm ci`, `npm run compile`, and `npm test` from this directory. Use `npm test -- --grep "ConfidentialMultisend"` for payroll tests only.
 
-Future features should define their own custody and permissions. Mock assets and the buyback disclosure policy are not
-defaults for production features.
+Features define their own custody and permissions. Mock assets and the buyback disclosure policy are not defaults for production features.

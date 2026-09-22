@@ -11,14 +11,14 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | Feature                               | App status               | Development priority | Decision record                               |
 | ------------------------------------- | ------------------------ | -------------------- | --------------------------------------------- |
 | [Buybacks](docs/features/buybacks.md) | Available at `/buybacks` | Implemented          | [ADR-0002](docs/adr/0002-buybacks.md)         |
-| Payroll                               | Soon                     | Todo                 | [ADR-0003](docs/adr/0003-payroll.md)          |
+| [Payroll](docs/features/payroll.md) | Soon | Contracts implemented | [ADR-0003](docs/adr/0003-payroll.md) |
 | Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
 | Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
 | Vesting                               | Soon                     | Todo                 | [ADR-0006](docs/adr/0006-vesting.md)          |
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries describe future work and have no transaction actions. Payroll and vesting have accepted designs but are not implemented; the other future-feature ADRs remain proposed.
+The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has an accepted design but is not implemented. The other future-feature ADRs remain proposed.
 
 ## Architecture
 
@@ -45,8 +45,10 @@ frontend/src/
   lib/                      # Wallet, FHE, decryption, transaction utilities
 contracts/
   contracts/buybacks/        # BuybackVault and oracle interface
-  contracts/mocks/           # Demo tokens and price oracle
+  contracts/payroll/         # Caller-funded confidential multisend
+  contracts/mocks/           # Demo tokens, test tokens, and price oracle
   test/buybacks/             # Existing contract regression suite
+  test/payroll/              # Multisend payment and privacy tests
   deploy/buybacks.ts         # Buyback deployment with its existing identity
   scripts/buybacks/          # Seed and state-verification scripts
 CONTEXT.md                   # Domain glossary
