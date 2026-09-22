@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 
-import { CONTRACTS, vaultAbi } from "@/config/contracts";
+import { CONTRACTS, vaultAbi } from "@/features/buybacks/contracts";
 import { publicDecrypt } from "@/lib/fhevm";
 import { formatAmount, formatPrice, formatTimestamp } from "@/lib/format";
-import { useEpochs } from "@/lib/useEpochs";
+import { useEpochs } from "@/features/buybacks/useEpochs";
 import { useTx } from "@/lib/useTx";
 
 const DISCLOSURE_DELAY = 300; // seconds, mirrors the contract constant

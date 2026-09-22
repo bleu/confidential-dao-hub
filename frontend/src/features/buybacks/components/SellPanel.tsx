@@ -10,13 +10,14 @@ import {
 } from "wagmi";
 
 import { EncryptedValue } from "@/components/EncryptedValue";
-import { CONTRACTS, oracleAbi, tokenAbi, vaultAbi } from "@/config/contracts";
 import {
-  encryptValues,
-  getCachedDecryption,
-  getDecryptionVersion,
-  subscribeDecryptions,
-} from "@/lib/fhevm";
+  CONTRACTS,
+  oracleAbi,
+  tokenAbi,
+  vaultAbi,
+} from "@/features/buybacks/contracts";
+import { encryptValues } from "@/lib/fhevm";
+import { useDecryption } from "@/lib/decryption-context";
 import {
   formatAmount,
   formatPrice,
@@ -24,7 +25,7 @@ import {
   parseAmount,
   parsePrice,
 } from "@/lib/format";
-import { useEpochs, type EpochData } from "@/lib/useEpochs";
+import { useEpochs, type EpochData } from "@/features/buybacks/useEpochs";
 import { useTx } from "@/lib/useTx";
 
 const OPERATOR_TTL_HOURS = 24;
@@ -68,15 +69,20 @@ function PayoutCell({
   fillHandle?: `0x${string}`;
   minHandle?: `0x${string}`;
 }) {
+  const decryption = useDecryption();
   useSyncExternalStore(
-    subscribeDecryptions,
-    getDecryptionVersion,
-    getDecryptionVersion,
+    decryption.subscribe,
+    decryption.getVersion,
+    decryption.getVersion,
   );
   if (epoch.open)
     return <span className="font-mono text-xs text-zinc-600">window live</span>;
-  const fill = fillHandle ? getCachedDecryption(fillHandle) : undefined;
-  const min = minHandle ? getCachedDecryption(minHandle) : undefined;
+  const fill = fillHandle
+    ? decryption.getCachedDecryption(fillHandle, CONTRACTS.vault)
+    : undefined;
+  const min = minHandle
+    ? decryption.getCachedDecryption(minHandle, CONTRACTS.vault)
+    : undefined;
   if (fill === undefined || min === undefined) {
     return (
       <span className="font-mono text-xs text-zinc-600">
