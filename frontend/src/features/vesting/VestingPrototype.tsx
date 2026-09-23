@@ -297,7 +297,7 @@ function CreationPanel({ state, dispatch }: { state: PrototypeState; dispatch: R
           <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Create sample grant</p>
           <h2 className="mt-2 text-xl text-zinc-100">Review immutable terms</h2>
         </div>
-        <button className={button} onClick={() => dispatch({ type: "setView", view: "list" })}>Back to grants</button>
+        <button className={button} onClick={() => dispatch({ type: "setView", view: "list" })}>Back to ongoing vestings</button>
       </div>
       <p className="mt-3 text-sm leading-6 text-zinc-400">The form is simulated. Allocation, recipient, schedule, token, and revocability cannot be changed after a real grant is created.</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -390,7 +390,6 @@ function Detail({ workspace, state, dispatch, beginDecrypt }: { workspace: Proto
 }
 
 function Operations({ workspace, state, dispatch, beginDecrypt }: { workspace: PrototypeWorkspace; state: PrototypeState; dispatch: React.Dispatch<Action>; beginDecrypt: () => void }) {
-  if (workspace === "dao" && state.view === "create") return <CreationPanel state={state} dispatch={dispatch} />;
   return <Detail workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />;
 }
 
@@ -462,7 +461,7 @@ export function VestingPrototype({ workspace }: { workspace: PrototypeWorkspace 
     <div className="pb-24">
       <Heading workspace={workspace} variant={variant} />
       <PrototypeBanner state={state} dispatch={dispatch} />
-      <CurrentVariant workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />
+      {workspace === "dao" && state.view === "create" ? <CreationPanel state={state} dispatch={dispatch} /> : <CurrentVariant workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />}
       {state.notice && <div role="status" className="mt-5 rounded-lg border border-yellow-900 bg-yellow-950/30 p-4 text-sm leading-6 text-yellow-100"><div className="flex items-start justify-between gap-3"><p>{state.notice}</p><button aria-label="Dismiss notice" className="text-yellow-200 hover:text-white" onClick={() => dispatch({ type: "clearNotice" })}>x</button></div></div>}
       <details className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-xs text-zinc-400"><summary className="cursor-pointer font-mono text-zinc-300">Mock state inspector</summary><pre className="mt-4 overflow-auto text-[11px] leading-5">{JSON.stringify({ workspace, variant, view: state.view, selectedGrantId: state.selectedGrantId, wallet: state.wallet, chain: state.chain, scope: state.scope, contextVersion: state.contextVersion, privateRead: state.privateRead, creation: state.creation, claim: state.claim, revocation: state.revocation, refund: state.refund, privateAmounts: state.privateRead === "decrypted" ? "sample values visible" : "redacted" }, null, 2)}</pre></details>
       <PrototypeSwitcher variant={variant} onChange={changeVariant} />
