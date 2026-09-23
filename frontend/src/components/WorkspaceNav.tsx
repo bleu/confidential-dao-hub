@@ -45,7 +45,12 @@ export function WorkspaceNav() {
             {workspace === "dao" ? CURRENT_DAO.name : "Your activity"}
           </p>
           <nav aria-label="Features" className="flex flex-wrap gap-1 md:grid">
-            {workspaceLinks(workspace).map(({ href, label, soon }) => (
+            {workspaceLinks(workspace).map(({ href, label, soon }) => soon ? (
+              <span key={href} aria-disabled="true" className="flex min-h-11 items-center justify-between gap-3 rounded-md px-3 py-2 text-sm text-zinc-500">
+                <span>{label}</span>
+                <span className="text-[10px] uppercase text-zinc-500">Soon</span>
+              </span>
+            ) : (
               <Link
                 key={href}
                 href={href}
@@ -53,7 +58,6 @@ export function WorkspaceNav() {
                 className={`flex min-h-11 items-center justify-between gap-3 rounded-md px-3 py-2 text-sm ${focus} ${isWorkspaceLinkActive(pathname, href) ? "bg-yellow-400/10 text-yellow-300" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"}`}
               >
                 <span>{label}</span>
-                {soon && <span className="text-[10px] uppercase text-zinc-500">Soon</span>}
               </Link>
             ))}
           </nav>

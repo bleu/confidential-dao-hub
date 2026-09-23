@@ -26,6 +26,8 @@ Mount the existing feature-scoped `DecryptionProvider` on each private buyback p
 - `/buybacks/report`: shared public report. A validated `workspace=community|dao` parameter selects navigation and the return link only.
 - Under both `/community` and `/dao`: `/vesting`, `/payroll`, `/payment-requests`, `/token-launchpad`, `/governance`, and `/airdrop-staking` are Soon pages without private reads or actions.
 
+Soon features appear as non-clickable labels in the sidebar and DAO overview. Their placeholder URLs remain available for direct visits.
+
 Redirect `/community` and the old `/buybacks` entry to `/community/buybacks`. Normal links give each screen a reloadable URL and preserve browser back navigation.
 
 ## Trade-offs and design source
