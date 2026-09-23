@@ -39,6 +39,14 @@ The minimum price a seller accepts for their offered tokens.
 **Disclosure**:
 The publication of previously confidential information to everyone; the eligible information and timing depend on the operation.
 
+## Payroll
+
+**Multisend**:
+A sender-initiated batch of payments to recipients using one token.
+
+**Payment Entry**:
+One recipient and requested amount in a multisend. Repeated recipients have separate entries.
+
 ## Vesting
 
 **Grant**:
