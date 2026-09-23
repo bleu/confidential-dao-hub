@@ -397,8 +397,15 @@ function Operations({ workspace, state, dispatch, beginDecrypt }: { workspace: P
 function VariantA({ workspace, state, dispatch, beginDecrypt }: { workspace: PrototypeWorkspace; state: PrototypeState; dispatch: React.Dispatch<Action>; beginDecrypt: () => void }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[210px_minmax(0,1fr)_230px]">
-      <GrantList workspace={workspace} selectedGrantId={state.selectedGrantId} onSelect={(grantId) => dispatch({ type: "selectGrant", grantId })} />
-      <div>{workspace === "dao" && <button className={`${primaryButton} mb-5`} onClick={() => dispatch({ type: "setView", view: "create" })}>Create sample grant</button>}<Operations workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} /></div>
+      <div className="space-y-5">
+        <GrantList workspace={workspace} selectedGrantId={state.selectedGrantId} onSelect={(grantId) => dispatch({ type: "selectGrant", grantId })} />
+        {workspace === "dao" && <section className={panel}>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Grant actions</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Create a new sample grant separately from the selected ongoing grant.</p>
+          <button className={`${primaryButton} mt-4 w-full`} onClick={() => dispatch({ type: "setView", view: "create" })}>Create sample grant</button>
+        </section>}
+      </div>
+      <div><Operations workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} /></div>
       <aside className={panel}>
         <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Action status</p>
         <dl className="mt-4 grid gap-4 text-sm"><Fact label="Private read" value={state.privateRead} /><Fact label="Funding" value={state.creation} /><Fact label="Claim" value={state.claim} /><Fact label="Revocation" value={state.revocation} /><Fact label="Refund" value={state.refund} /></dl>
