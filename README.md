@@ -14,11 +14,11 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | [Payroll](docs/features/payroll.md) | Soon | Contracts implemented | [ADR-0003](docs/adr/0003-payroll.md) |
 | Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
 | Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
-| Vesting                               | Soon                     | Todo                 | [ADR-0006](docs/adr/0006-vesting.md)          |
+| [Vesting](docs/features/vesting.md) | Soon | Contracts implemented | [ADR-0006](docs/adr/0006-vesting.md) |
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has an accepted design but is not implemented. The other future-feature ADRs remain proposed.
+The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future-feature ADRs remain proposed.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ Features own their contract interfaces, deployment configuration, and business l
 
 Each feature defines its own privacy policy. Buybacks encrypts amounts and seller price floors while participation metadata stays public, and supports delayed public disclosure of aggregate totals. That disclosure policy is not automatically applied to payroll or other features.
 
-The current frontend uses one configured Sepolia deployment. DAO onboarding, deployment discovery, shared treasury custody, and organization-wide permissions are future decisions. See [ADR-0001](docs/adr/0001-independent-feature-contracts.md).
+The current frontend uses one configured Sepolia buyback deployment. Vesting has feature-local shared custody. DAO onboarding, live deployment discovery, and organization-wide permissions remain future work. See [ADR-0001](docs/adr/0001-independent-feature-contracts.md).
 
 ## Repository
 
@@ -46,10 +46,15 @@ frontend/src/
 contracts/
   contracts/buybacks/        # BuybackVault and oracle interface
   contracts/payroll/         # Caller-funded confidential multisend
+  contracts/vesting/         # Shared confidential grants
   contracts/mocks/           # Demo tokens, test tokens, and price oracle
   test/buybacks/             # Existing contract regression suite
   test/payroll/              # Multisend payment and privacy tests
   deploy/buybacks.ts         # Buyback deployment with its existing identity
+  test/vesting/              # Grant lifecycle and privacy tests
+  deploy/vesting.ts          # Independent immutable vesting deployment
+  abi/vesting/               # Generated vesting interface
+  scripts/vesting/           # Vesting ABI export
   scripts/buybacks/          # Seed and state-verification scripts
 CONTEXT.md                   # Domain glossary
 docs/adr/                    # Accepted and proposed architectural decisions
