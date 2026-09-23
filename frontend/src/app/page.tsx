@@ -1,4 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import WorkspacePrototype from "./WorkspacePrototype";
+
+export default async function Home({ searchParams }: {
+  searchParams: Promise<{ variant?: string }>;
+}) {
+  const { variant } = await searchParams;
+  if (process.env.NODE_ENV !== "production" && variant && ["A", "B", "C"].includes(variant)) {
+    return <Suspense fallback={<p>Loading prototype...</p>}><WorkspacePrototype /></Suspense>;
+  }
+  return <OperationsCatalog />;
+}
 
 const upcomingFeatures = [
   {
@@ -28,7 +40,7 @@ const upcomingFeatures = [
   },
 ];
 
-export default function Home() {
+function OperationsCatalog() {
   return (
     <div>
       <div className="mb-8 max-w-xl">
