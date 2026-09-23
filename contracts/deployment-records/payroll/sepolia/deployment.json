@@ -1,0 +1,71 @@
+{
+  "abiFile": "ConfidentialMultisend.abi.json",
+  "artifact": {
+    "abiHash": "0xf70fcdcc85b3d0cd8ca4d21c9cb0083e77039eeb025871891a4ec34282e99499",
+    "compiledSourceHash": "9e814d80aabeb00891e47a1b377ad6f416e7249dd0c3d86c0c9677cbe01295be",
+    "compilerInputHash": "768506402dbee7f6460dea608b78b0cf815afc0414f3b5f3820534b02fba6d77",
+    "creationBytecodeHash": "0x74f80eea6c72b3b69b04090c57ce3b037bb7e6a47aa1e881c2cd0e4f4b8e469a",
+    "runtimeBytecodeHash": "0x8fc8c0a5d4cf03716dd094392ae81c42fa49110d2ce372467798e4e20c3ab47f"
+  },
+  "blockNumber": 11765852,
+  "chainId": "11155111",
+  "compiler": {
+    "settings": {
+      "metadata": {
+        "bytecodeHash": "none",
+        "useLiteralContent": true
+      },
+      "optimizer": {
+        "enabled": true,
+        "runs": 800
+      },
+      "evmVersion": "cancun",
+      "outputSelection": {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata",
+            "devdoc",
+            "userdoc",
+            "storageLayout",
+            "evm.gasEstimates"
+          ],
+          "": [
+            "ast"
+          ]
+        }
+      }
+    },
+    "version": "0.8.27+commit.40a35a09"
+  },
+  "configuration": {
+    "administrator": null,
+    "constructorArguments": [],
+    "dependencies": [],
+    "token": {
+      "address": "0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA",
+      "codeHash": "0xb98c91197be735e78bcb71d46903a4f556f17d20693682950fb9ea241af48fc1",
+      "compatibility": "code-presence-only"
+    }
+  },
+  "contractAddress": "0x8Fb39444A9f23eE344A3AF85cF8FAD25Fc762b91",
+  "contractName": "ConfidentialMultisend",
+  "deployer": "0x76b0340e50BD9883D8B2CA5fd9f52439a9e7Cf58",
+  "gitCommit": "8166699ab2cd37533dc2ff77e77a50ba65b3ea71",
+  "nonce": 427,
+  "schemaVersion": 1,
+  "source": {
+    "currentHash": "9e814d80aabeb00891e47a1b377ad6f416e7249dd0c3d86c0c9677cbe01295be",
+    "matchesCompiledSource": true
+  },
+  "sourceName": "contracts/payroll/ConfidentialMultisend.sol",
+  "transactionHash": "0x12860fe17db8c9cd7e53c361663e5a1cc210d948afaafa731b61c052b0b8fc1f",
+  "verifiedRuntime": {
+    "deployedRuntimeBytecodeHash": "0x8fc8c0a5d4cf03716dd094392ae81c42fa49110d2ce372467798e4e20c3ab47f",
+    "immutableReferenceCount": 0,
+    "normalizedRuntimeBytecodeHash": "0x8fc8c0a5d4cf03716dd094392ae81c42fa49110d2ce372467798e4e20c3ab47f"
+  }
+}

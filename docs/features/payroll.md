@@ -2,7 +2,7 @@
 
 Payroll uses a permissionless multisend to pay several recipients with one confidential token. Each call spends the caller's funds. There is no administrator, employee roster, saved salary, advance deposit, or managed payroll balance. See [ADR 0003](../adr/0003-payroll.md) for the design decision.
 
-This guide covers the contract stage. Payroll has no Sepolia deployment or frontend integration yet and remains Soon in the app. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making it available.
+Payroll is deployed on Sepolia with verified source code. Live payment checks and frontend integration are still pending, so payroll remains Soon in the app. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making it available.
 
 ## Contract interface
 
@@ -77,6 +77,72 @@ Use normal transaction logs for discovery. Filter `Payment` by sender, token, or
 For each payment log, the sender and that entry's recipient can decrypt the requested and actual amount references with the multisend contract as the decryption scope. Other recipients and outsiders are not granted access to those references. These permissions do not grant access to another holder's token balance. A sender or recipient who can decrypt a value can still share its plaintext outside the application.
 
 Future frontend decryption must isolate sessions by wallet, chain, and feature contract scope. Clear plaintext and reject pending results when those change, as required by [ADR 0001](../adr/0001-independent-feature-contracts.md).
+
+## Sepolia deployment
+
+The deployed multisend is [`0x8Fb39444A9f23eE344A3AF85cF8FAD25Fc762b91`](https://sepolia.etherscan.io/address/0x8Fb39444A9f23eE344A3AF85cF8FAD25Fc762b91#code), on chain `11155111`. The deployment transaction is [`0x12860fe17db8c9cd7e53c361663e5a1cc210d948afaafa731b61c052b0b8fc1f`](https://sepolia.etherscan.io/tx/0x12860fe17db8c9cd7e53c361663e5a1cc210d948afaafa731b61c052b0b8fc1f), from `0x76b0340e50BD9883D8B2CA5fd9f52439a9e7Cf58`, in block `11765852`. Receipt and exact runtime-bytecode checks passed, and Etherscan source verification succeeded through API V2. No live payment or private-read checks have been run yet.
+
+The [deployment record](../../contracts/deployment-records/payroll/sepolia/deployment.json) includes compiler settings and artifact hashes. The [ABI](../../contracts/deployment-records/payroll/sepolia/ConfidentialMultisend.abi.json) is exported from the compiled artifact. The recorded mock token has a code-presence check only; its live payment compatibility has not yet been verified.
+
+Deploy only `ConfidentialMultisend`. It has no constructor arguments, administrator, or fixed token address. The `ConfidentialMultisend` deployment tag has no buyback dependencies. Never use an untagged `hardhat deploy` command for payroll: it can run other features' deployment scripts.
+
+From `contracts/`, put the deployer key in `PRIVATE_KEY` and the Sepolia endpoint in `RPC_URL` in your local `.env`. Do not commit this file or paste its contents into logs or chat. Use a funded Sepolia wallet, not the default local test wallet. Set `ETHERSCAN_API_KEY` in `.env` for source verification. The config also accepts `npx hardhat vars set ETHERSCAN_API_KEY` as a fallback.
+
+Run the local checks below before deployment. Set `EXPECTED_DEPLOYER_ADDRESS` to the public wallet address you approved, then run:
+
+```bash
+npm run preflight:payroll:sepolia
+```
+
+Review the public deployer address and gas estimate. Set `PAYROLL_DEPLOY_GAS_LIMIT` to the approved maximum gas units and `PAYROLL_DEPLOY_MAX_FEE_PER_GAS_WEI` to the approved maximum wei per gas, then run preflight again. Their product is the maximum deployment gas cost; the deployer must have at least that much ETH. Deployment uses these caps and refuses an estimate that does not fit.
+
+Approve deployment separately. The deploy command requires `PAYROLL_DEPLOY_CONFIRMATION` from the capped preflight; it binds the chain, signer, artifact, pending nonce, and gas caps. Do not keep this confirmation in a shared configuration file.
+
+```bash
+npm run deploy:payroll:sepolia
+npm run verify:payroll:sepolia
+npx hardhat verify --network sepolia --contract contracts/payroll/ConfidentialMultisend.sol:ConfidentialMultisend <multisend-address>
+```
+
+The state verifier checks the deployed contract and exports its ABI and deployment record to `contracts/deployment-records/payroll/sepolia/` relative to the repository root. Review these public files before committing them. The last command submits the source to Etherscan and has no constructor arguments. A source-verification failure can be retried without rerunning deployment.
+
+Live payment tests have a separate approval step and use dedicated demo wallets. Approval to deploy does not authorize spending a sender's tokens.
+
+The initial demo token is the existing mock cUSDT at `0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA`. Verify its deployed code before use. Reusing this token does not authorize using buyback vault funds or changing buyback configuration. Its faucet accepts a public amount; faucet funding is not confidential.
+
+Deployment verification must check the receipt and runtime bytecode, then export the ABI and public provenance record. Source verification is a separate check; a failed explorer request must not trigger another deployment. Do not claim deployment or payment success until the corresponding checks pass.
+
+Live payment checks must decrypt requested and actual amounts with the sender and recipient wallets. Keep plaintext values out of output and saved evidence. A test summary can reveal whether a demo payment succeeded, so use only approved demo data. Do not automatically repeat a transaction after a timeout: check its receipt first. The contract has no duplicate-payment protection.
+
+`npm run test:sepolia` does not verify the deployed multisend. The payroll unit tests skip outside the local FHE mock. Live checks must run through the live relayer and report their results separately from local tests.
+
+### Live demo setup
+
+The live evidence script uses a separate sender, ten recipient wallets, and an outsider wallet. All twelve wallets must be distinct, must use private test keys, and must differ from the deployer. Never use the public Hardhat test keys on Sepolia. Only the sender needs ETH for these transactions. Its cUSDT balance must start at zero.
+
+Configure these values locally without printing them:
+
+| Variable | Meaning |
+| --- | --- |
+| `EXPECTED_DEPLOYER_ADDRESS` | Public deployer address, excluded from the demo wallets |
+| `PAYROLL_LIVE_MULTISEND_ADDRESS` | Verified deployed multisend |
+| `PAYROLL_LIVE_RPC_URL` | Sepolia RPC endpoint |
+| `PAYROLL_LIVE_SENDER_PRIVATE_KEY` | Dedicated demo sender key |
+| `PAYROLL_LIVE_RECIPIENT_PRIVATE_KEYS` | Ten recipient keys, separated by commas |
+| `PAYROLL_LIVE_OUTSIDER_PRIVATE_KEY` | Separate outsider key |
+| `PAYROLL_LIVE_PAYMENT_AMOUNT` | Positive token units per entry, within the script's demo limit |
+| `PAYROLL_LIVE_OPERATOR_SECONDS` | Permission lifetime, 900-3600 seconds |
+| `PAYROLL_LIVE_JOURNAL` | New local journal path in an existing directory |
+
+After reviewing the wallets and transaction sequence, explicitly authorize the demo:
+
+```bash
+PAYROLL_LIVE_EVIDENCE=I_AUTHORIZE_SEPOLIA_PAYROLL_DEMO_TRANSACTIONS_WITH_OPERATOR_GRANT_AND_REVOCATION npm run evidence:payroll:sepolia
+```
+
+This authorizes an operator grant, an underfunded submission, faucet funding, a funded ten-recipient submission, and operator revocation. The script checks all ten recipients' own private reads and samples outsider and cross-recipient ACL denial for both requested and actual amounts. An ACL denial is a permission check, not a failed live decryption request. Each multisend is a new payment request. The script refuses to reuse an existing journal. After interruption, inspect the saved transaction hashes and on-chain receipts before deciding whether to start a new demo. A lost RPC response does not prove that a transaction failed.
+
+The demo uses equal payment amounts and public faucet funding. Those choices make demo amounts inferable from the test setup. Use throwaway demo data, never real salaries. The private-read checks test who has decryption access; they do not make this demo's funding confidential.
 
 ## Local checks
 

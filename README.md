@@ -18,7 +18,7 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future-feature ADRs remain proposed.
+The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract, local tests, and a source-verified Sepolia deployment; live payment checks and frontend work remain pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future-feature ADRs remain proposed.
 
 ## Architecture
 
@@ -56,7 +56,9 @@ contracts/
   deploy/vesting.ts          # Independent immutable vesting deployment
   abi/vesting/               # Generated vesting interface
   scripts/vesting/           # Vesting ABI export
+  deploy/payroll.ts          # Separate multisend deployment
   scripts/buybacks/          # Seed and state-verification scripts
+  scripts/payroll/           # Multisend preflight and verification scripts
 CONTEXT.md                   # Domain glossary
 docs/adr/                    # Accepted and proposed architectural decisions
 docs/features/               # Feature behavior and operational details
@@ -98,6 +100,12 @@ npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
 ```
 
 The seed script is for the default mock payment-token deployment. When using an external `CUSDT_ADDRESS`, fund the vault through that token's supported flow instead. Deployment is an explicit operator action; moving contract source files does not migrate the existing deployment.
+
+## Payroll deployment
+
+Payroll uses a separate `ConfidentialMultisend` deployment tag. It does not deploy tokens or change buyback contracts. Follow the [payroll deployment guide](docs/features/payroll.md#sepolia-deployment) for the wallet check, gas approval, and verification steps. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only.
+
+The multisend has no admin or constructor arguments. A sender selects the token for each payment. Deploying it does not enable payroll in the app, and a confirmed payment transaction does not prove that recipients were paid.
 
 ## Extending the hub
 
