@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { ConnectButton } from "@/components/ConnectButton";
-import { WorkspaceNav } from "@/components/WorkspaceNav";
+import { WorkspaceNav, WorkspaceSwitcher } from "@/components/WorkspaceNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -29,13 +29,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Confidential operations for DAOs · Sepolia
           </p>
         </Link>
-        <ConnectButton />
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
+          <Suspense fallback={null}>
+            <WorkspaceSwitcher />
+          </Suspense>
+          <ConnectButton />
+        </div>
       </header>
       <div className="grid overflow-hidden rounded-xl border border-zinc-800 md:grid-cols-[195px_minmax(0,1fr)]">
-        <Suspense fallback={<aside className="border-zinc-800 p-4 text-sm text-zinc-500 md:border-r">Loading navigation...</aside>}>
+        <Suspense fallback={null}>
           <WorkspaceNav />
         </Suspense>
-        <main id="main-content" tabIndex={-1} className="min-w-0 p-5 outline-none sm:p-7">
+        <main id="main-content" tabIndex={-1} className="min-w-0 p-5 outline-none sm:p-7 md:only:col-span-2">
           {children}
         </main>
       </div>

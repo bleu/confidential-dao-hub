@@ -4,7 +4,7 @@ status: accepted
 
 # Separate Community and DAO workspaces
 
-Move the Community and treasury split out of individual features into a shared left sidebar. The home page lets visitors choose Community or the DAO dashboard. One person can use both, so these workspaces do not define roles or grant access. Use short labels and show permission reasons beside restricted controls rather than repeating explanatory paragraphs.
+Move the Community and treasury split out of individual features into a shared header switch. Keep feature navigation in the left sidebar. The home page keeps its Community and DAO dashboard choice cards, without a sidebar. One person can use both, so these workspaces do not define roles or grant access. Use short labels and show permission reasons beside restricted controls rather than repeating explanatory paragraphs.
 
 Community starts with a buyback list, then the seller's offer and claim tools. Use "Sell cTOKEN" for the listing action. The DAO dashboard starts with an overview of the current DAO, then its tools to create and manage the buyback. "Create buyback" starts the existing vault's first epoch; it does not deploy or fund a vault. Both areas link to one public buyback report. Vesting, Payroll, Payment Requests, Token Launchpad, Governance, and Airdrop / Staking remain Soon in both workspaces. The eventual Community views for Vesting and Payroll should show the connected wallet's grants and payments across DAOs, while buybacks remain browsable. This does not implement those views or their data discovery.
 

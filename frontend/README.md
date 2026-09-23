@@ -1,6 +1,6 @@
 # Confidential Ops Hub frontend
 
-Next.js frontend for confidential DAO treasury operations. `/` opens the workspace chooser. Community lists buybacks at `/community/buybacks` and opens sell/claim at `/community/buybacks/ctoken`. The DAO overview is at `/dao`, with treasury tools at `/dao/buybacks`. Both areas use `/buybacks/report`; its optional `workspace` parameter affects navigation only. The old `/buybacks` route redirects to the list.
+Next.js frontend for confidential DAO treasury operations. `/` opens the workspace chooser without a sidebar. The header switches workspaces; feature navigation stays in the left menu. Community lists buybacks at `/community/buybacks` and opens sell/claim at `/community/buybacks/ctoken`. The DAO overview is at `/dao`, with treasury tools at `/dao/buybacks`. Both areas use `/buybacks/report`; its optional `workspace` parameter affects navigation only. The old `/buybacks` route redirects to the list.
 
 Anyone can browse either area. The DAO creates and manages its buyback; Community members sell tokens and claim payments. Vesting, Payroll, Payment Requests, Token Launchpad, Governance, and Airdrop / Staking stay Soon in both workspaces. Treasury actions and private amounts depend on the connected wallet's contract permissions, not the selected workspace. The existing Sepolia faucet and mock oracle remain demo tools.
 
