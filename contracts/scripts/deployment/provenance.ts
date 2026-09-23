@@ -3,11 +3,11 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { keccak256, toUtf8Bytes } from "ethers";
+import { Interface, keccak256, toUtf8Bytes, type InterfaceAbi } from "ethers";
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
+import type { ABI } from "hardhat-deploy/types";
 
-const PAYROLL_SOURCE_NAME = "src/payroll/ConfidentialMultisend.sol";
-const PAYROLL_FULLY_QUALIFIED_NAME = `${PAYROLL_SOURCE_NAME}:ConfidentialMultisend`;
+import type { DeploymentConfiguration, DeploymentFeature } from "./feature";
 
 export interface ImmutableReference {
   length: number;
@@ -15,7 +15,7 @@ export interface ImmutableReference {
 }
 
 export interface RuntimeArtifact {
-  abi: unknown;
+  abi: ABI;
   bytecode: string;
   compiledSourceHash: string;
   compilerInputHash: string;
@@ -23,6 +23,7 @@ export interface RuntimeArtifact {
   contractName: string;
   deployedBytecode: string;
   immutableReferences?: Record<string, ImmutableReference[]>;
+  linkReferences?: Record<string, Record<string, ImmutableReference[]>>;
   metadata: string;
   sourceName: string;
 }
@@ -48,16 +49,7 @@ export interface DeploymentRecord {
     settings: unknown;
     version: string;
   };
-  configuration: {
-    administrator: null;
-    constructorArguments: [];
-    dependencies: [];
-    token: {
-      address: string;
-      codeHash: string;
-      compatibility: "code-presence-only";
-    };
-  };
+  configuration: DeploymentConfiguration;
   contractAddress: string;
   contractName: string;
   deployer: string;
@@ -115,7 +107,7 @@ export function verifyRuntimeBytecode(
   hexWithoutPrefix(artifact.deployedBytecode);
   hexWithoutPrefix(deployedBytecode);
   if (artifact.deployedBytecode.toLowerCase() !== deployedBytecode.toLowerCase()) {
-    throw new Error("Deployed runtime bytecode does not match the payroll artifact.");
+    throw new Error("Deployed runtime bytecode does not match the artifact.");
   }
   return {
     deployedRuntimeBytecodeHash: keccak256(deployedBytecode),
@@ -132,21 +124,42 @@ export function getCompilerVersion(metadata: string): string {
   return compilerVersion;
 }
 
-export async function loadPayrollRuntimeArtifact(hre: HardhatRuntimeEnvironment): Promise<RuntimeArtifact> {
-  const artifact = await hre.deployments.getArtifact("ConfidentialMultisend");
-  const buildInfo = await hre.artifacts.getBuildInfo(PAYROLL_FULLY_QUALIFIED_NAME);
-  if (!buildInfo) throw new Error("Compiled payroll build information is unavailable.");
-  const contractOutput = buildInfo.output.contracts[PAYROLL_SOURCE_NAME]?.ConfidentialMultisend as
+export function assertSupportedArtifact(
+  artifact: Pick<RuntimeArtifact, "abi" | "bytecode" | "deployedBytecode" | "immutableReferences" | "linkReferences">,
+): void {
+  if (new Interface(artifact.abi as InterfaceAbi).deploy.inputs.length > 0) {
+    throw new Error("Shared deployment requires a contract without constructor arguments.");
+  }
+  if (
+    Object.values(artifact.linkReferences ?? {}).some((libraries) =>
+      Object.values(libraries).some((references) => references.length > 0),
+    )
+  ) {
+    throw new Error("Shared deployment does not support linked libraries.");
+  }
+  if (artifact.bytecode === "0x") throw new Error("Deployment artifact has no creation bytecode.");
+  hexWithoutPrefix(artifact.bytecode);
+  verifyRuntimeBytecode(artifact, artifact.deployedBytecode);
+}
+
+export async function loadRuntimeArtifact(
+  hre: HardhatRuntimeEnvironment,
+  feature: DeploymentFeature,
+): Promise<RuntimeArtifact> {
+  const artifact = await hre.artifacts.readArtifact(feature.contractName);
+  const buildInfo = await hre.artifacts.getBuildInfo(`${artifact.sourceName}:${artifact.contractName}`);
+  if (!buildInfo) throw new Error("Compiled deployment build information is unavailable.");
+  const contractOutput = buildInfo.output.contracts[artifact.sourceName]?.[artifact.contractName] as
     | {
         evm: { deployedBytecode: { immutableReferences?: Record<string, ImmutableReference[]> } };
         metadata?: string;
       }
     | undefined;
-  const source = buildInfo.input.sources[PAYROLL_SOURCE_NAME]?.content;
+  const source = buildInfo.input.sources[artifact.sourceName]?.content;
   if (!contractOutput?.metadata || source === undefined) {
-    throw new Error("Compiled payroll metadata or source is unavailable.");
+    throw new Error("Compiled deployment metadata or source is unavailable.");
   }
-  return {
+  const runtimeArtifact: RuntimeArtifact = {
     abi: artifact.abi,
     bytecode: artifact.bytecode,
     compiledSourceHash: sha256(source),
@@ -155,9 +168,12 @@ export async function loadPayrollRuntimeArtifact(hre: HardhatRuntimeEnvironment)
     contractName: artifact.contractName,
     deployedBytecode: artifact.deployedBytecode,
     immutableReferences: contractOutput.evm.deployedBytecode.immutableReferences,
+    linkReferences: artifact.linkReferences,
     metadata: contractOutput.metadata,
     sourceName: artifact.sourceName,
   };
+  assertSupportedArtifact(runtimeArtifact);
+  return runtimeArtifact;
 }
 
 export async function getSourceHash(sourceFile: string): Promise<string> {
@@ -179,7 +195,7 @@ export async function writeDeploymentRecord(options: {
   abi: unknown;
 }): Promise<void> {
   await mkdir(options.directory, { recursive: true });
-  const abiPath = join(options.directory, "ConfidentialMultisend.abi.json");
+  const abiPath = join(options.directory, options.record.abiFile);
   const recordPath = join(options.directory, "deployment.json");
   const abiContents = `${JSON.stringify(options.abi, null, 2)}\n`;
   const recordContents = `${JSON.stringify(options.record, null, 2)}\n`;
@@ -200,8 +216,8 @@ export async function writeDeploymentRecord(options: {
   ]);
 }
 
-export function deploymentRecordDirectory(repositoryRoot: string): string {
-  return join(repositoryRoot, "deployment-records", "payroll", "sepolia");
+export function deploymentRecordDirectory(repositoryRoot: string, feature: DeploymentFeature): string {
+  return join(repositoryRoot, "deployment-records", feature.key, "sepolia");
 }
 
 export function sourceFileForArtifact(contractsRoot: string, artifact: Pick<RuntimeArtifact, "sourceName">): string {
@@ -215,7 +231,7 @@ export async function buildDeploymentRecord(options: {
   contractAddress: string;
   deployedBytecode: string;
   deployer: string;
-  mockToken: { address: string; codeHash: string };
+  configuration: DeploymentConfiguration;
   nonce: number;
   repositoryRoot: string;
   sourceFile: string;
@@ -223,7 +239,7 @@ export async function buildDeploymentRecord(options: {
 }): Promise<DeploymentRecord> {
   const currentSourceHash = await getSourceHash(options.sourceFile);
   return {
-    abiFile: "ConfidentialMultisend.abi.json",
+    abiFile: `${options.artifact.contractName}.abi.json`,
     artifact: {
       abiHash: keccak256(toUtf8Bytes(JSON.stringify(options.artifact.abi))),
       compiledSourceHash: options.artifact.compiledSourceHash,
@@ -237,16 +253,7 @@ export async function buildDeploymentRecord(options: {
       settings: options.artifact.compilerSettings,
       version: getCompilerVersion(options.artifact.metadata),
     },
-    configuration: {
-      administrator: null,
-      constructorArguments: [],
-      dependencies: [],
-      token: {
-        address: options.mockToken.address,
-        codeHash: options.mockToken.codeHash,
-        compatibility: "code-presence-only",
-      },
-    },
+    configuration: options.configuration,
     contractAddress: options.contractAddress,
     contractName: options.artifact.contractName,
     deployer: options.deployer,

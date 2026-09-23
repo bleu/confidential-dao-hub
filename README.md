@@ -52,15 +52,17 @@ contracts/
   test/buybacks/             # Existing contract regression suite
   test/payroll/              # Multisend payment and privacy tests
   deploy/buybacks.ts         # Buyback deployment with its existing identity
+  deploy/payroll.ts          # Guarded multisend deployment wrapper
+  deploy/vesting.ts          # Guarded immutable vesting deployment wrapper
   test/vesting/              # Grant lifecycle and privacy tests
-  deploy/vesting.ts          # Independent immutable vesting deployment
   abi/vesting/               # Generated vesting interface
-  scripts/vesting/           # Vesting ABI export
-  deploy/payroll.ts          # Separate multisend deployment
   scripts/buybacks/          # Seed and state-verification scripts
-  scripts/payroll/           # Multisend preflight and verification scripts
+  scripts/deployment/        # Shared guarded feature deployment helpers
+  scripts/payroll/           # Payroll deployment config, wrappers, and live evidence
+  scripts/vesting/           # Vesting deployment config, wrappers, and ABI export
 CONTEXT.md                   # Domain glossary
 docs/adr/                    # Accepted and proposed architectural decisions
+docs/deployment.md           # Shared feature deployment guide
 docs/features/               # Feature behavior and operational details
 docs/agents/                 # Linear, triage, and domain-doc skill conventions
 ```
@@ -101,11 +103,11 @@ npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
 
 The seed script is for the default mock payment-token deployment. When using an external `CUSDT_ADDRESS`, fund the vault through that token's supported flow instead. Deployment is an explicit operator action; moving contract source files does not migrate the existing deployment.
 
-## Payroll deployment
+## Feature deployment
 
-Payroll uses a separate `ConfidentialMultisend` deployment tag. It does not deploy tokens or change buyback contracts. Follow the [payroll deployment guide](docs/features/payroll.md#sepolia-deployment) for the wallet check, gas approval, and verification steps. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only.
+Payroll and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia; vesting is not deployed. Both remain Soon in the app.
 
-The multisend has no admin or constructor arguments. A sender selects the token for each payment. Deploying it does not enable payroll in the app, and a confirmed payment transaction does not prove that recipients were paid.
+Buybacks retains its custom deployment flow. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only. The [payroll guide](docs/features/payroll.md#sepolia-deployment) and [vesting guide](docs/features/vesting.md#later-sepolia-deployment) give their feature-specific steps.
 
 ## Extending the hub
 

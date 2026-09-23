@@ -84,9 +84,11 @@ The deployed multisend is [`0x8Fb39444A9f23eE344A3AF85cF8FAD25Fc762b91`](https:/
 
 The [deployment record](../../contracts/deployment-records/payroll/sepolia/deployment.json) includes compiler settings and artifact hashes. The [ABI](../../contracts/deployment-records/payroll/sepolia/ConfidentialMultisend.abi.json) is exported from the compiled artifact. The recorded mock token has a code-presence check only; its live payment compatibility has not yet been verified.
 
-Deploy only `ConfidentialMultisend`. It has no constructor arguments, administrator, or fixed token address. The `ConfidentialMultisend` deployment tag has no buyback dependencies. Never use an untagged `hardhat deploy` command for payroll: it can run other features' deployment scripts.
+Deploy only `ConfidentialMultisend`. It has no constructor arguments, administrator, or fixed token address. Its preserved tag is `ConfidentialMultisend` and its deployment ID is `deploy_confidential_multisend_v1`. It does not deploy tokens or change buyback contracts. The shared helpers and retry rules are documented in the [deployment guide](../deployment.md). Never use an untagged `hardhat deploy` command for payroll: it can run other features' deployment scripts.
 
 From `contracts/`, put the deployer key in `PRIVATE_KEY` and the Sepolia endpoint in `RPC_URL` in your local `.env`. Do not commit this file or paste its contents into logs or chat. Use a funded Sepolia wallet, not the default local test wallet. Set `ETHERSCAN_API_KEY` in `.env` for source verification. The config also accepts `npx hardhat vars set ETHERSCAN_API_KEY` as a fallback.
+
+The payroll feature configuration uses the shared `EXPECTED_DEPLOYER_ADDRESS` check. It also requires deployed code at the configured demo token address and records its public code hash. This check belongs to payroll; the multisend has no fixed token dependency, and vesting does not run this check.
 
 Run the local checks below before deployment. Set `EXPECTED_DEPLOYER_ADDRESS` to the public wallet address you approved, then run:
 
@@ -101,10 +103,12 @@ Approve deployment separately. The deploy command requires `PAYROLL_DEPLOY_CONFI
 ```bash
 npm run deploy:payroll:sepolia
 npm run verify:payroll:sepolia
-npx hardhat verify --network sepolia --contract contracts/payroll/ConfidentialMultisend.sol:ConfidentialMultisend <multisend-address>
+npx hardhat verify --network sepolia --contract src/payroll/ConfidentialMultisend.sol:ConfidentialMultisend <multisend-address>
 ```
 
-The state verifier checks the deployed contract and exports its ABI and deployment record to `contracts/deployment-records/payroll/sepolia/` relative to the repository root. Review these public files before committing them. The last command submits the source to Etherscan and has no constructor arguments. A source-verification failure can be retried without rerunning deployment.
+The state verifier checks the deployed contract and exports its ABI and deployment record to `contracts/deployment-records/payroll/sepolia/` relative to the repository root. Review these public files before committing them. The last command submits the current source to Etherscan and has no constructor arguments. A source-verification failure can be retried without rerunning deployment.
+
+The published payroll ABI and deployment record remain the public record for the existing Sepolia deployment. That record identifies the historical source as `contracts/payroll/ConfidentialMultisend.sol`; the current source is `src/payroll/ConfidentialMultisend.sol`. Recompiling the current source does not verify the historical build. That proof requires the matching original source, compiler settings, and recorded build inputs. Do not redeploy the multisend or overwrite its ABI or deployment record if historical source verification fails.
 
 Live payment tests have a separate approval step and use dedicated demo wallets. Approval to deploy does not authorize spending a sender's tokens.
 

@@ -89,6 +89,9 @@
     "deploy:payroll:sepolia": "hardhat deploy --tags ConfidentialMultisend --network sepolia",
     "verify:payroll:sepolia": "hardhat run scripts/payroll/verify-deployment.ts --network sepolia",
     "evidence:payroll:sepolia": "ts-node scripts/payroll/live-evidence.ts",
+    "preflight:vesting:sepolia": "hardhat run scripts/vesting/preflight.ts --network sepolia",
+    "deploy:vesting:sepolia": "hardhat deploy --tags ConfidentialVesting --network sepolia",
+    "verify:vesting:sepolia": "hardhat run scripts/vesting/verify-deployment.ts --network sepolia",
     "verify:sepolia": "hardhat verify --network sepolia"
   },
   "overrides": {
