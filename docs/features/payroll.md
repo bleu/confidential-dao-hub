@@ -80,6 +80,8 @@ Future frontend decryption must isolate sessions by wallet, chain, and feature c
 
 ## Local checks
 
+The payroll tests currently use only `ConfidentialGovToken`, including separate instances for token isolation. They cover its normal payment behavior, insufficient funds, operator permissions, input validation, overflow, and privacy. Custom-token fault tests are deferred, including forced later-transfer reverts, reentry, partial transfers, restrictions, and reused result handles. The contract protections remain in place; this test scope does not establish compatibility with other token implementations.
+
 Run from `contracts/`:
 
 ```bash
