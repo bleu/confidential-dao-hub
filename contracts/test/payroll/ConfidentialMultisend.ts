@@ -4,21 +4,21 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers, fhevm } from "hardhat";
 
-import { ConfidentialGovToken, ConfidentialMultisend } from "../../types";
+import { GenericConfidentialToken, ConfidentialMultisend } from "../../types";
 
 describe("ConfidentialMultisend", function () {
   let sender: HardhatEthersSigner;
   let alice: HardhatEthersSigner;
   let bob: HardhatEthersSigner;
   let outsider: HardhatEthersSigner;
-  let token: ConfidentialGovToken;
+  let token: GenericConfidentialToken;
   let multisend: ConfidentialMultisend;
   let scope: string;
 
   beforeEach(async function () {
     if (!fhevm.isMock) this.skip();
     [sender, alice, bob, outsider] = await ethers.getSigners();
-    token = await (await ethers.getContractFactory("ConfidentialGovToken")).deploy("Payroll token", "PAY", 1_000n);
+    token = await (await ethers.getContractFactory("GenericConfidentialToken")).deploy("Payroll token", "PAY", 1_000n);
     multisend = await (await ethers.getContractFactory("ConfidentialMultisend")).deploy();
     scope = await multisend.getAddress();
     await token.setOperator(scope, (await time.latest()) + 3_600);
@@ -32,7 +32,7 @@ describe("ConfidentialMultisend", function () {
 
   async function balance(
     user: HardhatEthersSigner,
-    asset: Pick<ConfidentialGovToken, "confidentialBalanceOf" | "getAddress"> = token,
+    asset: Pick<GenericConfidentialToken, "confidentialBalanceOf" | "getAddress"> = token,
   ) {
     const handle = await asset.confidentialBalanceOf(user.address);
     if (handle === ethers.ZeroHash) return 0n;
@@ -95,7 +95,7 @@ describe("ConfidentialMultisend", function () {
   it("pays the full uint64 maximum without clamping it", async function () {
     const maximum = 18_446_744_073_709_551_615n;
     const asset = await (
-      await ethers.getContractFactory("ConfidentialGovToken")
+      await ethers.getContractFactory("GenericConfidentialToken")
     ).deploy("Maximum supply", "MAX", maximum);
     await asset.setOperator(scope, (await time.latest()) + 3_600);
     const input = await encrypt([maximum]);
@@ -255,7 +255,7 @@ describe("ConfidentialMultisend", function () {
 
   it("isolates callers and two distinct standard tokens", async function () {
     const other = await (
-      await ethers.getContractFactory("ConfidentialGovToken", outsider)
+      await ethers.getContractFactory("GenericConfidentialToken", outsider)
     ).deploy("Other token", "OTHER", 1_000n);
     await other.connect(outsider).setOperator(scope, (await time.latest()) + 3_600);
     await token.connect(outsider).setOperator(scope, (await time.latest()) + 3_600);
