@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 
 import { EncryptedValue } from "@/components/EncryptedValue";
-import { CONTRACTS, oracleAbi, vaultAbi } from "@/features/buybacks/contracts";
+import { CONTRACTS, CHAIN_ID, oracleAbi, vaultAbi } from "@/features/buybacks/contracts";
+import {
+  isContractOwner,
+  ownerActionReason,
+  rollEpochReason,
+} from "@/features/buybacks/permissions";
 import { encryptAmount } from "@/lib/fhevm";
 import {
   formatPrice,
@@ -16,7 +21,7 @@ import { useEpochs } from "@/features/buybacks/useEpochs";
 import { useTx } from "@/lib/useTx";
 
 export function TreasuryPanel() {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { send, pending, error } = useTx();
   const [budgetInput, setBudgetInput] = useState("1000");
   const [topUpInput, setTopUpInput] = useState("500");
@@ -37,6 +42,11 @@ export function TreasuryPanel() {
     abi: vaultAbi,
     functionName: "currentEpochId",
   });
+  const { data: oracleOwner } = useReadContract({
+    address: CONTRACTS.oracle,
+    abi: oracleAbi,
+    functionName: "owner",
+  });
   const { data: oraclePrice } = useReadContract({
     address: CONTRACTS.oracle,
     abi: oracleAbi,
@@ -44,17 +54,29 @@ export function TreasuryPanel() {
   });
   const { epochs } = useEpochs();
 
-  const isOwner =
-    !!address && !!owner && address.toLowerCase() === owner.toLowerCase();
+  const vaultAccess = { address, chainId, expectedChainId: CHAIN_ID, owner };
+  const oracleAccess = {
+    address,
+    chainId,
+    expectedChainId: CHAIN_ID,
+    owner: oracleOwner,
+  };
+  const isVaultOwner = isContractOwner(vaultAccess);
   const current =
     hasOpen && currentId !== undefined
       ? epochs.find((e) => e.id === currentId)
       : undefined;
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
   const windowExpired = !!current && current.epoch.endsAt <= nowSec;
+  const vaultActionReason = ownerActionReason(vaultAccess, "Vault");
+  const oracleActionReason = ownerActionReason(oracleAccess, "Oracle");
+  const priceActionReason =
+    oracleActionReason ?? (!priceInput ? "Enter price" : undefined);
+  const rollReason = rollEpochReason({ ...vaultAccess, windowExpired });
 
-  const openPool = () =>
-    send("open", async () => {
+  const openPool = () => {
+    if (vaultActionReason) return;
+    return send("open", async () => {
       const budget = parseAmount(budgetInput);
       const enc = await encryptAmount(CONTRACTS.vault, address!, budget);
       return {
@@ -64,9 +86,11 @@ export function TreasuryPanel() {
         args: [enc.handle, enc.proof],
       };
     });
+  };
 
-  const topUp = () =>
-    send("topup", async () => {
+  const topUp = () => {
+    if (vaultActionReason) return;
+    return send("topup", async () => {
       const amount = parseAmount(topUpInput);
       const enc = await encryptAmount(CONTRACTS.vault, address!, amount);
       return {
@@ -76,9 +100,11 @@ export function TreasuryPanel() {
         args: [enc.handle, enc.proof],
       };
     });
+  };
 
-  const setPrice = () =>
-    send("price", () =>
+  const setPrice = () => {
+    if (priceActionReason) return;
+    return send("price", () =>
       Promise.resolve({
         address: CONTRACTS.oracle,
         abi: oracleAbi,
@@ -86,14 +112,22 @@ export function TreasuryPanel() {
         args: [parsePrice(priceInput)] as const,
       }),
     );
+  };
+
+  const rollEpoch = () => {
+    if (rollReason) return;
+    return send("roll", {
+      address: CONTRACTS.vault,
+      abi: vaultAbi,
+      functionName: "rollEpoch",
+    });
+  };
 
   return (
     <div className="space-y-6">
-      {!isOwner && (
+      {!isVaultOwner && (
         <p className="rounded border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-500">
-          Treasury actions are owner-gated (
-          {owner ? `${owner.slice(0, 10)}…` : "…"}). You can view this panel but
-          transactions will revert unless you hold the treasury key.
+          Budget access: {vaultActionReason ?? "Vault owner only"}.
         </p>
       )}
 
@@ -117,6 +151,8 @@ export function TreasuryPanel() {
                   handle={current.epoch.budget}
                   contractAddress={CONTRACTS.vault}
                   unit="cTOKEN"
+                  authorized={isVaultOwner}
+                  unauthorizedReason={vaultActionReason ?? "Vault owner only"}
                 />
               </dd>
             </div>
@@ -127,6 +163,8 @@ export function TreasuryPanel() {
                   handle={current.epoch.remaining}
                   contractAddress={CONTRACTS.vault}
                   unit="cTOKEN"
+                  authorized={isVaultOwner}
+                  unauthorizedReason={vaultActionReason ?? "Vault owner only"}
                 />
               </dd>
             </div>
@@ -137,6 +175,8 @@ export function TreasuryPanel() {
                   handle={current.epoch.totalFilled}
                   contractAddress={CONTRACTS.vault}
                   unit="cTOKEN"
+                  authorized={isVaultOwner}
+                  unauthorizedReason={vaultActionReason ?? "Vault owner only"}
                 />
               </dd>
             </div>
@@ -160,7 +200,8 @@ export function TreasuryPanel() {
             </label>
             <button
               onClick={topUp}
-              disabled={!isOwner || pending !== null}
+              disabled={!!vaultActionReason || pending !== null}
+              title={vaultActionReason}
               className="rounded border border-yellow-600 bg-yellow-950/40 px-4 py-1.5 font-mono text-xs text-yellow-300 transition-colors hover:bg-yellow-900/40 disabled:opacity-40"
             >
               {pending === "topup"
@@ -168,29 +209,22 @@ export function TreasuryPanel() {
                 : "encrypt & top up"}
             </button>
             <button
-              onClick={() =>
-                send("roll", {
-                  address: CONTRACTS.vault,
-                  abi: vaultAbi,
-                  functionName: "rollEpoch",
-                })
-              }
-              disabled={(!isOwner && !windowExpired) || pending !== null}
+              onClick={rollEpoch}
+              disabled={!!rollReason || pending !== null}
+              title={rollReason}
               className="rounded border border-red-900 bg-red-950/30 px-4 py-1.5 font-mono text-xs text-red-300 transition-colors hover:bg-red-900/30 disabled:opacity-40"
             >
               {pending === "roll" ? "settling…" : "settle window now"}
             </button>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
-            Settling snapshots the oracle price for this window and rolls the
-            unspent budget into the next one. A top-up of 0 is indistinguishable
-            from a real one — top-ups leak nothing.
+            {rollReason ? `${rollReason}.` : "Anyone can settle after expiry."} Unspent budget carries into the next epoch.
           </p>
         </section>
       ) : (
         <section className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-5">
           <h2 className="mb-4 font-mono text-sm uppercase tracking-widest text-zinc-400">
-            open the pool
+            Create buyback
           </h2>
           <div className="flex flex-wrap items-end gap-4">
             <label className="text-sm">
@@ -205,16 +239,15 @@ export function TreasuryPanel() {
             </label>
             <button
               onClick={openPool}
-              disabled={!isOwner || pending !== null}
+              disabled={!!vaultActionReason || pending !== null}
+              title={vaultActionReason}
               className="rounded border border-yellow-600 bg-yellow-950/40 px-4 py-1.5 font-mono text-sm text-yellow-300 transition-colors hover:bg-yellow-900/40 disabled:opacity-40"
             >
-              {pending === "open" ? "encrypting + opening…" : "encrypt & open"}
+              {pending === "open" ? "Encrypting and creating..." : "Create buyback"}
             </button>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
-            Once opened, the pool stays open: windows settle at the oracle price
-            and roll automatically, carrying unspent budget forward. Fund the
-            vault with cUSDT before opening (payouts are best-effort).
+            Starts the buyback in the existing vault. Fund it with cUSDT first. An underfunded claim can transfer zero payment.
           </p>
         </section>
       )}
@@ -224,8 +257,7 @@ export function TreasuryPanel() {
           price oracle (mock)
         </h2>
         <p className="mb-3 text-xs text-zinc-600">
-          Windows settle at this price. PoC stand-in for a real feed — the
-          treasury moves it to simulate the market.
+          Demo settlement price. {oracleActionReason ? `${oracleActionReason}.` : ""}
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <span className="font-mono text-sm text-zinc-200">
@@ -241,7 +273,8 @@ export function TreasuryPanel() {
           />
           <button
             onClick={setPrice}
-            disabled={!isOwner || pending !== null || !priceInput}
+            disabled={!!priceActionReason || pending !== null}
+            title={priceActionReason}
             className="rounded border border-zinc-600 px-3 py-1.5 font-mono text-xs text-zinc-300 hover:border-zinc-400 disabled:opacity-40"
           >
             {pending === "price" ? "setting…" : "set price"}

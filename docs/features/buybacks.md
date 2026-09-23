@@ -2,7 +2,7 @@
 
 **Dark-pool protocol buybacks on [Zama FHEVM](https://docs.zama.org/protocol).** Built for the Zama Developer Program Builder Track. PoC/MVP quality — not audited, not production.
 
-**App route:** `/buybacks` · **Network:** Sepolia only
+**App routes:** `/community/buybacks/ctoken` (sell and claim), `/dao/buybacks` (treasury), `/buybacks/report` (public report). `/buybacks` redirects to the Community list. **Network:** Sepolia only.
 
 ![ConfidentialBuybacks — treasury view with encrypted epoch state](../screenshot.png)
 
@@ -131,7 +131,9 @@ npx hardhat run scripts/buybacks/seed.ts --network sepolia
 npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
 ```
 
-Demo flow with two wallets: **Seller** — faucet cTOKEN → approve vault as operator (24 h) → submit encrypted offer with a private price floor. **Treasury** — decrypt remaining/total, move the mock oracle, settle the window. **Seller** — decrypt fill + floor, claim payout + refund. **Anyone** — after 5 minutes, request + publish the window total on the transparency tab.
+Demo flow with two wallets: **Seller** uses `/community/buybacks/ctoken` to get cTOKEN from the faucet, approve the vault as operator for 24 hours, and submit an encrypted offer with a private price floor. **Treasury** uses `/dao/buybacks` to decrypt remaining/total, move the mock oracle, and settle the epoch. **Seller** decrypts fill and floor, then claims payout and refund. **Anyone** can request and publish eligible epoch totals at `/buybacks/report` after the disclosure delay.
+
+Both workspaces are public. The DAO creates and manages the buyback; Community members sell tokens and claim payment. The DAO's "Create buyback" action starts the first epoch in the configured vault. It does not deploy a vault or fund payments. Private pages keep a route-local decryption session; leaving the page, changing wallet, or changing chain clears plaintext. Treasury decryption controls require the vault owner on Sepolia. The oracle uses its own owner, while expired epoch rolling and disclosure stay permissionless. See [ADR 0010](../adr/0010-community-dao-workspaces.md).
 
 Claims are marked consumed even when insufficient vault funds cause a zero payment. There is no treasury collection function for purchased cTOKEN. These are existing PoC limitations, not guarantees for future hub features.
 

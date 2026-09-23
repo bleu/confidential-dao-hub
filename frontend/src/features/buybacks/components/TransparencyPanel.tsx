@@ -1,22 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAccount, useReadContract } from "wagmi";
 
-import { CONTRACTS, vaultAbi } from "@/features/buybacks/contracts";
+import { CHAIN_ID, CONTRACTS, vaultAbi } from "@/features/buybacks/contracts";
+import {
+  isDisclosureEligible,
+  walletActionReason,
+} from "@/features/buybacks/permissions";
 import { publicDecrypt } from "@/lib/fhevm";
 import { formatAmount, formatPrice, formatTimestamp } from "@/lib/format";
 import { useEpochs } from "@/features/buybacks/useEpochs";
 import { useTx } from "@/lib/useTx";
 
-const DISCLOSURE_DELAY = 300; // seconds, mirrors the contract constant
+const DEFAULT_DISCLOSURE_DELAY = 300;
 
 export function TransparencyPanel() {
+  const { address, chainId } = useAccount();
   const { epochs } = useEpochs();
   const { send, pending, error, setError } = useTx();
-  const [now] = useState(() => Math.floor(Date.now() / 1000));
+  const { data: disclosureDelay } = useReadContract({
+    address: CONTRACTS.vault,
+    abi: vaultAbi,
+    functionName: "DISCLOSURE_DELAY",
+  });
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const delaySeconds = Number(disclosureDelay ?? DEFAULT_DISCLOSURE_DELAY);
+  const walletReason = walletActionReason({
+    address,
+    chainId,
+    expectedChainId: CHAIN_ID,
+  });
 
-  const finalize = (epochId: bigint, totalFilledHandle: string) =>
-    send(`finalize-${epochId}`, async () => {
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      1_000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const finalize = (epochId: bigint, totalFilledHandle: string) => {
+    if (walletReason) return;
+    return send(`finalize-${epochId}`, async () => {
       const result = await publicDecrypt(totalFilledHandle).catch(() => {
         throw new Error(
           "Public decryption not ready — run step 1 (request) first, then retry in ~30s.",
@@ -29,6 +55,7 @@ export function TransparencyPanel() {
         args: [epochId, result.abiEncodedClearValues, result.decryptionProof],
       };
     });
+  };
 
   if (epochs.length === 0) {
     return <p className="text-sm text-zinc-500">No windows yet.</p>;
@@ -37,14 +64,11 @@ export function TransparencyPanel() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-zinc-500">
-        Window totals stay encrypted while orders execute.{" "}
-        {DISCLOSURE_DELAY / 60} minutes after a window settles,{" "}
-        <span className="text-zinc-300">anyone</span> can trigger public
-        disclosure of the total bought — the cleartext is verified on-chain
-        against KMS signatures. Confidential during execution, accountable
-        afterward.
+        Anyone can disclose epoch totals {delaySeconds / 60} minutes after settlement.
+        {walletReason && <> {walletReason} to request or publish totals.</>}
       </p>
 
+      <div className="overflow-x-auto" role="region" aria-label="Public epoch totals" tabIndex={0}>
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-zinc-800 font-mono text-xs uppercase text-zinc-600">
@@ -60,9 +84,12 @@ export function TransparencyPanel() {
           {epochs.map(({ id, epoch }) => {
             const eligible =
               !epoch.open &&
-              epoch.closedAt > 0n &&
-              now >= Number(epoch.closedAt) + DISCLOSURE_DELAY &&
-              !epoch.disclosed;
+              isDisclosureEligible({
+                closedAt: epoch.closedAt,
+                delaySeconds,
+                now,
+                disclosed: epoch.disclosed,
+              });
             const waiting =
               !epoch.open &&
               epoch.closedAt > 0n &&
@@ -114,6 +141,7 @@ export function TransparencyPanel() {
                     <span className="inline-flex gap-2">
                       <button
                         onClick={() => {
+                          if (walletReason) return;
                           setError(null);
                           send(`request-${id}`, {
                             address: CONTRACTS.vault,
@@ -122,7 +150,8 @@ export function TransparencyPanel() {
                             args: [id],
                           });
                         }}
-                        disabled={pending !== null}
+                        disabled={!!walletReason || pending !== null}
+                        title={walletReason}
                         className="rounded border border-zinc-600 px-3 py-1 font-mono text-xs text-zinc-300 hover:border-zinc-400 disabled:opacity-40"
                       >
                         {pending === `request-${id}`
@@ -131,7 +160,8 @@ export function TransparencyPanel() {
                       </button>
                       <button
                         onClick={() => finalize(id, epoch.totalFilled)}
-                        disabled={pending !== null}
+                        disabled={!!walletReason || pending !== null}
+                        title={walletReason}
                         className="rounded border border-yellow-600 bg-yellow-950/40 px-3 py-1 font-mono text-xs text-yellow-300 hover:bg-yellow-900/40 disabled:opacity-40"
                       >
                         {pending === `finalize-${id}`
@@ -146,6 +176,7 @@ export function TransparencyPanel() {
           })}
         </tbody>
       </table>
+      </div>
 
       {error && (
         <p className="break-all rounded border border-red-900 bg-red-950/20 px-3 py-2 text-xs text-red-400">

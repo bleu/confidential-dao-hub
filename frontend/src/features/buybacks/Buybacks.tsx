@@ -1,51 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 
 import { SellPanel } from "./components/SellPanel";
 import { TreasuryPanel } from "./components/TreasuryPanel";
 import { TransparencyPanel } from "./components/TransparencyPanel";
 import { BUYBACK_DECRYPTION_SCOPE } from "./contracts";
 import { DecryptionProvider } from "@/lib/decryption-context";
+import { buybackHref, reportHref, routes, type Workspace } from "@/lib/workspaces";
 
-const tabs = ["sell", "treasury", "transparency"] as const;
+type View = "sell" | "treasury" | "report";
 
-export function Buybacks() {
-  const [tab, setTab] = useState<(typeof tabs)[number]>("sell");
+export function Buybacks({ view, workspace }: { view: View; workspace: Workspace }) {
+  const title = view === "sell" ? "Sell cTOKEN" : view === "treasury" ? "Buyback treasury" : "Public buyback report";
 
   return (
-    <DecryptionProvider scope={BUYBACK_DECRYPTION_SCOPE}>
-      <Link
-        href="/"
-        className="mb-4 inline-flex min-h-11 items-center font-mono text-sm text-zinc-400 hover:text-yellow-300"
-      >
-        ← All operations
-      </Link>
-      <h1 className="font-mono text-2xl text-zinc-100">Buybacks</h1>
-      <p className="mt-2 text-sm text-zinc-400">
-        Rolling settlement windows with encrypted budgets, offers, and price
-        floors.
-      </p>
-      <nav
-        aria-label="Buyback views"
-        className="my-8 flex gap-1 overflow-x-auto border-b border-zinc-800"
-      >
-        {tabs.map((item) => (
-          <button
-            key={item}
-            type="button"
-            aria-pressed={tab === item}
-            onClick={() => setTab(item)}
-            className={`min-h-11 px-4 py-2 font-mono text-sm capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-yellow-400 ${tab === item ? "border-b-2 border-yellow-400 text-yellow-300" : "text-zinc-400 hover:text-zinc-200"}`}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
-      {tab === "sell" && <SellPanel />}
-      {tab === "treasury" && <TreasuryPanel />}
-      {tab === "transparency" && <TransparencyPanel />}
-    </DecryptionProvider>
+    <div>
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-medium tracking-tight text-zinc-100">{title}</h1>
+        <Link
+          href={view === "report" ? buybackHref(workspace) : reportHref(workspace)}
+          className="inline-flex min-h-11 items-center rounded text-sm text-yellow-300 underline decoration-yellow-800 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-yellow-400"
+        >
+          {view === "report" ? "Back to buyback" : "Public report"}
+        </Link>
+      </div>
+      {view === "report" ? (
+        <TransparencyPanel />
+      ) : (
+        <DecryptionProvider key={view} scope={BUYBACK_DECRYPTION_SCOPE}>
+          {view === "sell" ? <SellPanel /> : <TreasuryPanel />}
+        </DecryptionProvider>
+      )}
+      {view === "sell" && (
+        <Link href={routes.community} className="mt-6 inline-flex min-h-11 items-center rounded text-sm text-zinc-400 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-yellow-400">
+          All buybacks
+        </Link>
+      )}
+    </div>
   );
 }
