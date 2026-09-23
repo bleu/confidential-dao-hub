@@ -89,15 +89,28 @@ The focused tests cover funding, authorization, private reads, schedule limits, 
 
 The ABI is generated at `contracts/abi/vesting/ConfidentialVesting.json` relative to the repository root. Its source artifact is `contracts/artifacts/src/vesting/ConfidentialVesting.sol/ConfidentialVesting.json`. Regenerate it after contract changes. No frontend addresses are configured by this script.
 
-The deployment script is `contracts/deploy/vesting.ts`, with tag `ConfidentialVesting` and ID `deploy_confidential_vesting_v1`. It has no constructor arguments, token list, or treasury setting. Existing buyback deployment identifiers and addresses are unchanged.
+The deployment configuration is `contracts/scripts/vesting/deployment.ts`. It uses the preserved `ConfidentialVesting` tag and `deploy_confidential_vesting_v1` deployment ID. The preflight and deployment wrappers use the shared helpers described in the [deployment guide](../deployment.md). The contract has no constructor arguments, token list, or treasury setting. Existing buyback deployment identifiers and addresses are unchanged.
 
 ## Later Sepolia deployment
 
-No live deployment was made for this contract stage. An operator must explicitly deploy and verify it in the separate deployment task. From `contracts/`, after setting `PRIVATE_KEY` and `RPC_URL`:
+No live deployment was made for this contract stage. Vesting remains Soon in the app. An operator must explicitly deploy and verify it in the separate deployment task.
+
+From `contracts/`, set `PRIVATE_KEY`, `RPC_URL`, `ETHERSCAN_API_KEY`, and the shared `EXPECTED_DEPLOYER_ADDRESS` locally. Do not commit or print the private key. Start with the preflight:
 
 ```bash
-npx hardhat deploy --tags ConfidentialVesting --network sepolia
-npx hardhat verify --network sepolia <deployed-address>
+npm run preflight:vesting:sepolia
 ```
+
+Review the public deployer address and gas estimate. Set `VESTING_DEPLOY_GAS_LIMIT` to the approved maximum gas units and `VESTING_DEPLOY_MAX_FEE_PER_GAS_WEI` to the approved maximum wei per gas, then run preflight again. Their product is the maximum deployment gas cost, and the deployer must hold at least that much ETH. Deployment refuses an estimate that exceeds the caps.
+
+The capped preflight produces `VESTING_DEPLOY_CONFIRMATION`. It binds the vesting feature, `ConfidentialVesting`, full creation calldata, dependency configuration hashes, chain, signer, pending nonce, and gas caps. Approve deployment separately, provide the confirmation only for this command, and do not save it in shared configuration. The vesting graph has one contract; after confirmation, a later deploy invocation only verifies and reports the completed deployment without broadcasting.
+
+```bash
+npm run deploy:vesting:sepolia
+npm run verify:vesting:sepolia
+npx hardhat verify --network sepolia --contract src/vesting/ConfidentialVesting.sol:ConfidentialVesting <deployed-address>
+```
+
+The shared verifier reads and checks every vesting descriptor, then exports the ABI and deployment record to `contracts/deployment-records/vesting/sepolia/`. Source verification is a separate explorer action with no constructor arguments. A failed preflight, deployment, verifier, or explorer request must not cause another deployment or overwrite an existing record. Inspect the transaction and records before retrying.
 
 Record the deployed address, ABI, dependency versions, and verification results. Check funding, claims, revocation/refund retries, and decryption access on Sepolia before claiming that stage is complete. Do not deploy `GenericConfidentialToken`; it is a local test adapter with unrestricted controls.

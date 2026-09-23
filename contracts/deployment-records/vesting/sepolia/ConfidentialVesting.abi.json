@@ -1,0 +1,330 @@
+[
+  {
+    "inputs": [],
+    "name": "AlreadyRevoked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GrantNotRevoked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSchedule",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IrrevocableGrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "handle",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "SenderNotAllowedToUseHandle",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedRecipient",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedTreasury",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownGrant",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZamaProtocolUnsupported",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GrantClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "GrantCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GrantRefundRetried",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GrantRevoked",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "claim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "confidentialProtocolId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint48",
+        "name": "start",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "end",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "cliff",
+        "type": "uint48"
+      },
+      {
+        "internalType": "bool",
+        "name": "revocable",
+        "type": "bool"
+      },
+      {
+        "internalType": "externalEuint64",
+        "name": "amount",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "createGrant",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getGrant",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "treasury",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint48",
+            "name": "start",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "end",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "cliff",
+            "type": "uint48"
+          },
+          {
+            "internalType": "bool",
+            "name": "revocable",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "revoked",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "revokedAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "euint64",
+            "name": "refundEntitlement",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "euint64",
+            "name": "refunded",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "euint64",
+            "name": "allocation",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "euint64",
+            "name": "claimed",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct ConfidentialVesting.Grant",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "retryRefund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "grantId",
+        "type": "uint256"
+      }
+    ],
+    "name": "revoke",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
