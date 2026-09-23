@@ -4,13 +4,13 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 
 **Network:** Sepolia · **Status:** PoC, not audited or production-ready
 
-![Confidential Ops Hub — operations catalog](docs/hub.png)
+![Confidential Ops Hub workspace chooser](docs/hub.png)
 
 ## Operations
 
 | Feature                               | App status               | Development priority | Decision record                               |
 | ------------------------------------- | ------------------------ | -------------------- | --------------------------------------------- |
-| [Buybacks](docs/features/buybacks.md) | Available at `/buybacks` | Implemented          | [ADR-0002](docs/adr/0002-buybacks.md)         |
+| [Buybacks](docs/features/buybacks.md) | Available in both workspaces | Implemented          | [ADR-0002](docs/adr/0002-buybacks.md)         |
 | [Payroll](docs/features/payroll.md) | Soon | Contracts implemented | [ADR-0003](docs/adr/0003-payroll.md) |
 | Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
 | Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
@@ -18,7 +18,9 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage is the operations catalog. Buybacks retains its Sell, Treasury, and Transparency views. Soon entries have no transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future-feature ADRs remain proposed.
+The homepage offers Community and DAO dashboard workspaces. Community lists buybacks and opens the seller's offer and claim tools. The DAO dashboard opens the current DAO's treasury tools. Both link to one public buyback report. All pages are public; wallet permissions control actions and private decryption. See [ADR-0010](docs/adr/0010-community-dao-workspaces.md) for the selected layout and access boundaries.
+
+Payroll and Vesting have Soon pages without transaction actions. Payroll has a caller-funded confidential multisend contract and local tests; deployment and frontend work remain pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future operations are outside the current navigation, and their ADRs remain proposed.
 
 ## Architecture
 
@@ -39,7 +41,7 @@ The current frontend uses one configured Sepolia buyback deployment. Vesting has
 
 ```text
 frontend/src/
-  app/                      # Hub home, /buybacks, shared layout and providers
+  app/                      # Chooser, Community, DAO dashboard, shared public report
   components/               # Shared shell, wallet button, encrypted values
   features/buybacks/        # Buyback panels, epoch reads, addresses and ABIs
   lib/                      # Wallet, FHE, decryption, transaction utilities
@@ -83,7 +85,19 @@ npm run build
 npm run dev
 ```
 
-Visit `http://localhost:3000` for the hub and `/buybacks` for the existing demo. Walletless users can browse the catalog and public buyback views.
+Visit `http://localhost:3000` to choose a workspace. No wallet is needed to browse.
+
+| Route | Page |
+| --- | --- |
+| `/community/buybacks` | Buyback list |
+| `/community/buybacks/ctoken` | Sell and claim |
+| `/dao` | Current DAO overview |
+| `/dao/buybacks` | Buyback treasury |
+| `/buybacks/report` | Shared public buyback report |
+| `/community/vesting`, `/community/payroll` | Wallet activity, Soon |
+| `/dao/vesting`, `/dao/payroll` | DAO operations, Soon |
+
+`/community` and the old `/buybacks` URL redirect to the buyback list. The current deployment uses the display name `cTOKEN DAO`; there is no DAO onboarding or selector. Leaving a private buyback page clears its decryption session and plaintext.
 
 The buyback configuration lives in `frontend/src/features/buybacks/contracts.ts`. Existing addresses and ABI behavior are preserved. See the [buybacks guide](docs/features/buybacks.md) for recorded addresses, privacy details, known limitations, and the two-wallet demo flow.
 

@@ -11,11 +11,17 @@ import {
 
 import { EncryptedValue } from "@/components/EncryptedValue";
 import {
+  CHAIN_ID,
   CONTRACTS,
   oracleAbi,
   tokenAbi,
   vaultAbi,
 } from "@/features/buybacks/contracts";
+import {
+  canRollEpoch,
+  rollEpochReason,
+  walletActionReason,
+} from "@/features/buybacks/permissions";
 import { encryptValues } from "@/lib/fhevm";
 import { useDecryption } from "@/lib/decryption-context";
 import {
@@ -54,7 +60,7 @@ function Step({
       >
         {done ? "✓" : n}
       </span>
-      <div className="flex-1">{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
@@ -64,10 +70,12 @@ function PayoutCell({
   epoch,
   fillHandle,
   minHandle,
+  authorized,
 }: {
   epoch: EpochData;
   fillHandle?: `0x${string}`;
   minHandle?: `0x${string}`;
+  authorized: boolean;
 }) {
   const decryption = useDecryption();
   useSyncExternalStore(
@@ -77,12 +85,14 @@ function PayoutCell({
   );
   if (epoch.open)
     return <span className="font-mono text-xs text-zinc-600">window live</span>;
-  const fill = fillHandle
-    ? decryption.getCachedDecryption(fillHandle, CONTRACTS.vault)
-    : undefined;
-  const min = minHandle
-    ? decryption.getCachedDecryption(minHandle, CONTRACTS.vault)
-    : undefined;
+  const fill =
+    authorized && fillHandle
+      ? decryption.getCachedDecryption(fillHandle, CONTRACTS.vault)
+      : undefined;
+  const min =
+    authorized && minHandle
+      ? decryption.getCachedDecryption(minHandle, CONTRACTS.vault)
+      : undefined;
   if (fill === undefined || min === undefined) {
     return (
       <span className="font-mono text-xs text-zinc-600">
@@ -103,7 +113,7 @@ function PayoutCell({
 }
 
 export function SellPanel() {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { send, pending, error } = useTx();
   const [faucetInput, setFaucetInput] = useState("1000");
   const [offerInput, setOfferInput] = useState("100");
@@ -146,6 +156,13 @@ export function SellPanel() {
       : undefined;
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
   const windowExpired = !!current && current.epoch.endsAt <= nowSec;
+  const walletAccess = { address, chainId, expectedChainId: CHAIN_ID };
+  const walletReason = walletActionReason(walletAccess);
+  const operatorReason =
+    walletReason ?? (!isOperator ? "Approve vault first" : undefined);
+  const sellerRollAccess = { ...walletAccess, windowExpired };
+  const canSettleWindow = canRollEpoch(sellerRollAccess);
+  const settleReason = rollEpochReason(sellerRollAccess);
 
   // My position in every window (submitted/claimed flags are plaintext).
   const { data: positions } = useReadContracts({
@@ -205,16 +222,9 @@ export function SellPanel() {
 
   const submittedCurrent = hasOpen && myEpochs.some((e) => e.id === currentId);
 
-  if (!address) {
-    return (
-      <p className="text-sm text-zinc-500">
-        Connect a wallet to sell into the buyback.
-      </p>
-    );
-  }
-
-  const faucet = () =>
-    send("faucet", () =>
+  const faucet = () => {
+    if (walletReason) return;
+    return send("faucet", () =>
       Promise.resolve({
         address: CONTRACTS.cToken,
         abi: tokenAbi,
@@ -222,9 +232,11 @@ export function SellPanel() {
         args: [parseAmount(faucetInput)] as const,
       }),
     );
+  };
 
-  const approveOperator = () =>
-    send("operator", {
+  const approveOperator = () => {
+    if (walletReason) return;
+    return send("operator", {
       address: CONTRACTS.cToken,
       abi: tokenAbi,
       functionName: "setOperator",
@@ -233,9 +245,11 @@ export function SellPanel() {
         BigInt(Math.floor(Date.now() / 1000) + OPERATOR_TTL_HOURS * 3600),
       ],
     });
+  };
 
-  const submitOffer = () =>
-    send("offer", async () => {
+  const submitOffer = () => {
+    if (!address || operatorReason) return;
+    return send("offer", async () => {
       const amount = parseAmount(offerInput);
       const floor = parsePrice(floorInput || "0");
       const enc = await encryptValues(CONTRACTS.vault, address, [
@@ -249,18 +263,22 @@ export function SellPanel() {
         args: [enc.handles[0], enc.handles[1], enc.proof],
       };
     });
+  };
 
-  const settleWindow = () =>
-    send("roll", {
+  const settleWindow = () => {
+    if (!canSettleWindow) return;
+    return send("roll", {
       address: CONTRACTS.vault,
       abi: vaultAbi,
       functionName: "rollEpoch",
     });
+  };
 
   return (
     <div className="space-y-6">
+      {walletReason && <p className="text-sm text-zinc-500">{walletReason} to sell or claim.</p>}
       <section className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-5">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-mono text-sm uppercase tracking-widest text-zinc-400">
             sell into the buyback
           </h2>
@@ -270,6 +288,8 @@ export function SellPanel() {
               handle={balanceHandle}
               contractAddress={CONTRACTS.cToken}
               unit="cTOKEN"
+              authorized={!walletReason}
+              unauthorizedReason={walletReason}
             />
           </span>
         </div>
@@ -284,7 +304,8 @@ export function SellPanel() {
                 ended — settle to lock the price{" "}
                 <button
                   onClick={settleWindow}
-                  disabled={pending !== null}
+                  disabled={!canSettleWindow || pending !== null}
+                  title={settleReason}
                   className="ml-1 rounded border border-yellow-600 px-2 py-0.5 text-yellow-300 hover:bg-yellow-900/40 disabled:opacity-40"
                 >
                   {pending === "roll" ? "settling…" : "settle window"}
@@ -301,7 +322,7 @@ export function SellPanel() {
             <p className="mb-2 text-sm text-zinc-300">
               Get demo cTOKEN from the faucet (public mint, PoC only).
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 value={faucetInput}
                 onChange={(e) => setFaucetInput(e.target.value)}
@@ -309,7 +330,8 @@ export function SellPanel() {
               />
               <button
                 onClick={faucet}
-                disabled={pending !== null}
+                disabled={!!walletReason || pending !== null}
+                title={walletReason}
                 className="rounded border border-zinc-600 px-3 py-1.5 font-mono text-xs text-zinc-300 hover:border-zinc-400 disabled:opacity-40"
               >
                 {pending === "faucet" ? "minting…" : "faucet"}
@@ -319,14 +341,13 @@ export function SellPanel() {
 
           <Step n={2} done={!!isOperator} active={!isOperator}>
             <p className="mb-2 text-sm text-zinc-300">
-              Authorize the vault as an operator on cTOKEN so it can pull your
-              escrow ({OPERATOR_TTL_HOURS}h expiry). The vault only moves what
-              you offer, in the same transaction as your offer.
+              Approve the vault to transfer your offered tokens. Approval expires after {OPERATOR_TTL_HOURS} hours.
             </p>
             {!isOperator && (
               <button
                 onClick={approveOperator}
-                disabled={pending !== null}
+                disabled={!!walletReason || pending !== null}
+                title={walletReason}
                 className="rounded border border-zinc-600 px-3 py-1.5 font-mono text-xs text-zinc-300 hover:border-zinc-400 disabled:opacity-40"
               >
                 {pending === "operator" ? "approving…" : "approve vault"}
@@ -341,7 +362,7 @@ export function SellPanel() {
           >
             <p className="mb-2 text-sm text-zinc-300">
               {hasOpen
-                ? "Offer cTOKEN with a private price floor — both encrypted in your browser. The window settles at the oracle price; if it lands below your floor you&apos;re refunded in full, and nobody can tell."
+                ? "Set your amount and private price floor."
                 : "The pool has not been opened by the treasury yet."}
             </p>
             {hasOpen && !submittedCurrent && (
@@ -364,7 +385,8 @@ export function SellPanel() {
                 </label>
                 <button
                   onClick={submitOffer}
-                  disabled={!isOperator || pending !== null}
+                  disabled={!!operatorReason || pending !== null}
+                  title={operatorReason}
                   className="rounded border border-yellow-600 bg-yellow-950/40 px-4 py-1.5 font-mono text-xs text-yellow-300 hover:bg-yellow-900/40 disabled:opacity-40"
                 >
                   {pending === "offer"
@@ -412,6 +434,8 @@ export function SellPanel() {
                       <EncryptedValue
                         handle={e.handles?.offer}
                         contractAddress={CONTRACTS.vault}
+                        authorized={!walletReason}
+                        unauthorizedReason={walletReason}
                         unit="cTOKEN"
                       />
                     </td>
@@ -419,6 +443,8 @@ export function SellPanel() {
                       <EncryptedValue
                         handle={e.handles?.minPrice}
                         contractAddress={CONTRACTS.vault}
+                        authorized={!walletReason}
+                        unauthorizedReason={walletReason}
                         format={(v) => (v === 0n ? "any" : formatPrice(v))}
                       />
                     </td>
@@ -426,6 +452,8 @@ export function SellPanel() {
                       <EncryptedValue
                         handle={e.handles?.fill}
                         contractAddress={CONTRACTS.vault}
+                        authorized={!walletReason}
+                        unauthorizedReason={walletReason}
                         unit="cTOKEN"
                       />
                     </td>
@@ -434,6 +462,7 @@ export function SellPanel() {
                         epoch={e.epoch}
                         fillHandle={e.handles?.fill}
                         minHandle={e.handles?.minPrice}
+                        authorized={!walletReason}
                       />
                     </td>
                     <td className="py-3 text-right">
@@ -447,15 +476,17 @@ export function SellPanel() {
                         </span>
                       ) : (
                         <button
-                          onClick={() =>
+                          onClick={() => {
+                            if (walletReason) return;
                             send(`claim-${e.id}`, {
                               address: CONTRACTS.vault,
                               abi: vaultAbi,
                               functionName: "claim",
                               args: [e.id],
-                            })
-                          }
-                          disabled={pending !== null}
+                            });
+                          }}
+                          disabled={!!walletReason || pending !== null}
+                          title={walletReason}
                           className="rounded border border-yellow-600 bg-yellow-950/40 px-3 py-1 font-mono text-xs text-yellow-300 hover:bg-yellow-900/40 disabled:opacity-40"
                         >
                           {pending === `claim-${e.id}` ? "claiming…" : "claim"}

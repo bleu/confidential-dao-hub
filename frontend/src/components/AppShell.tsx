@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { ConnectButton } from "@/components/ConnectButton";
+import { WorkspaceNav } from "@/components/WorkspaceNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto min-h-screen max-w-4xl px-4 py-8">
+    <div className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:py-8">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:text-yellow-300"
@@ -29,7 +31,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <ConnectButton />
       </header>
-      <main id="main-content">{children}</main>
+      <div className="grid overflow-hidden rounded-xl border border-zinc-800 md:grid-cols-[195px_minmax(0,1fr)]">
+        <Suspense fallback={<aside className="border-zinc-800 p-4 text-sm text-zinc-500 md:border-r">Loading navigation...</aside>}>
+          <WorkspaceNav />
+        </Suspense>
+        <main id="main-content" tabIndex={-1} className="min-w-0 p-5 outline-none sm:p-7">
+          {children}
+        </main>
+      </div>
       <footer className="mt-16 border-t border-zinc-800 pt-4 text-xs text-zinc-500">
         <p className="font-mono">
           PoC — not audited · powered by{" "}
