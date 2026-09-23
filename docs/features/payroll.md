@@ -6,7 +6,7 @@ This guide covers the contract stage. Payroll has no Sepolia deployment or front
 
 ## Contract interface
 
-Source: `contracts/contracts/payroll/ConfidentialMultisend.sol`.
+Source: `contracts/src/payroll/ConfidentialMultisend.sol`.
 
 ```solidity
 function multisend(
@@ -25,7 +25,7 @@ event Payment(
 );
 ```
 
-The encrypted amount types are `bytes32` in the ABI. After compilation, the full ABI is in `contracts/artifacts/contracts/payroll/ConfidentialMultisend.sol/ConfidentialMultisend.json`. Generated artifacts are not checked in.
+The encrypted amount types are `bytes32` in the ABI. After compilation, the full ABI is in `contracts/artifacts/src/payroll/ConfidentialMultisend.sol/ConfidentialMultisend.json`. Generated artifacts are not checked in.
 
 Public validation uses `InvalidBatchSize(uint256)`, `MismatchedArrays()`, and `InvalidRecipient(address)`. Reentry fails with `ReentrancyGuardReentrantCall()`. FHE input errors and token errors propagate unchanged.
 

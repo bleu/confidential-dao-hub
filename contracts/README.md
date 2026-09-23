@@ -2,9 +2,10 @@
 
 One Hardhat project containing independent feature contracts. Buybacks has a configured Sepolia deployment. Payroll has a caller-funded confidential multisend contract and local tests; deployment remains pending. Other future contracts are not scaffolded with empty implementations.
 
-- `contracts/buybacks/`: existing `BuybackVault` and its `IPriceOracle` interface.
-- `contracts/payroll/`: permissionless `ConfidentialMultisend` with caller-funded ERC-7984 payments.
-- `contracts/mocks/`: mintable demo confidential token, owner-set price oracle, and test tokens.
+- `src/buybacks/`: existing `BuybackVault` and its `IPriceOracle` interface.
+- `src/payroll/`: permissionless `ConfidentialMultisend` with caller-funded ERC-7984 payments.
+- `src/mocks/`: mintable demo confidential token and owner-set price oracle.
+- `test/mocks/`: shared test-only `GenericConfidentialToken`.
 - `test/buybacks/`: FHEVM mock regression tests.
 - `test/payroll/`: multisend payment, failure, privacy, and encrypted-computation limit tests.
 - `deploy/buybacks.ts`: existing deployment names, tag, and identifier preserved.

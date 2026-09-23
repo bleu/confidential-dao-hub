@@ -44,10 +44,11 @@ frontend/src/
   features/buybacks/        # Buyback panels, epoch reads, addresses and ABIs
   lib/                      # Wallet, FHE, decryption, transaction utilities
 contracts/
-  contracts/buybacks/        # BuybackVault and oracle interface
-  contracts/payroll/         # Caller-funded confidential multisend
-  contracts/vesting/         # Shared confidential grants
-  contracts/mocks/           # Demo tokens, test tokens, and price oracle
+  src/buybacks/              # BuybackVault and oracle interface
+  src/payroll/               # Caller-funded confidential multisend
+  src/vesting/               # Shared confidential grants
+  src/mocks/                 # Demo tokens and price oracle
+  test/mocks/                # Shared test-only confidential token
   test/buybacks/             # Existing contract regression suite
   test/payroll/              # Multisend payment and privacy tests
   deploy/buybacks.ts         # Buyback deployment with its existing identity

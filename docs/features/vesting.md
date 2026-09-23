@@ -87,7 +87,7 @@ npx hardhat run scripts/vesting/export-abi.ts
 
 The focused tests cover funding, authorization, private reads, schedule limits, claim and refund failures, token-call reentrancy, and shared-custody isolation. The local lifecycle test runs the feature deployment script, then funds, claims, revokes with a zero refund, retries, and makes the final recipient claim. The full suite includes the existing buyback regressions. Mock tests do not prove live-chain behavior.
 
-The ABI is generated at `contracts/abi/vesting/ConfidentialVesting.json` relative to the repository root. Its source artifact is `contracts/artifacts/contracts/vesting/ConfidentialVesting.sol/ConfidentialVesting.json`. Regenerate it after contract changes. No frontend addresses are configured by this script.
+The ABI is generated at `contracts/abi/vesting/ConfidentialVesting.json` relative to the repository root. Its source artifact is `contracts/artifacts/src/vesting/ConfidentialVesting.sol/ConfidentialVesting.json`. Regenerate it after contract changes. No frontend addresses are configured by this script.
 
 The deployment script is `contracts/deploy/vesting.ts`, with tag `ConfidentialVesting` and ID `deploy_confidential_vesting_v1`. It has no constructor arguments, token list, or treasury setting. Existing buyback deployment identifiers and addresses are unchanged.
 

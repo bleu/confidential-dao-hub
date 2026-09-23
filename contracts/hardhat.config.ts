@@ -1,3 +1,6 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+
 import "@fhevm/hardhat-plugin";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-ethers";
@@ -6,13 +9,23 @@ import "@typechain/hardhat";
 import "hardhat-deploy";
 import "hardhat-gas-reporter";
 import * as dotenv from "dotenv";
+import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 import type { HardhatUserConfig } from "hardhat/config";
-import { vars } from "hardhat/config";
+import { subtask, vars } from "hardhat/config";
 import "solidity-coverage";
 
 import "./tasks/accounts";
 
 dotenv.config();
+
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(async (_args, hre, runSuper) => {
+  const sources: string[] = await runSuper();
+  const testFiles = await readdir(hre.config.paths.tests, { recursive: true });
+  return [
+    ...sources,
+    ...testFiles.filter((file) => file.endsWith(".sol")).map((file) => path.resolve(hre.config.paths.tests, file)),
+  ];
+});
 
 // Deployer key: PRIVATE_KEY + RPC_URL from .env take precedence; falls back to
 // the template's hardhat-vars mnemonic setup ('npx hardhat vars setup').
@@ -68,7 +81,7 @@ const config: HardhatUserConfig = {
   paths: {
     artifacts: "./artifacts",
     cache: "./cache",
-    sources: "./contracts",
+    sources: "./src",
     tests: "./test",
   },
   solidity: {

@@ -3,7 +3,7 @@ pragma solidity ^0.8.27;
 
 import {FHE, euint64} from "@fhevm/solidity/lib/FHE.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {ConfidentialGovToken} from "./ConfidentialGovToken.sol";
+import {ConfidentialGovToken} from "../../src/mocks/ConfidentialGovToken.sol";
 
 /// @dev Local tests only: unrestricted transfer and callback controls. Never deploy with real funds.
 contract GenericConfidentialToken is ConfidentialGovToken {
