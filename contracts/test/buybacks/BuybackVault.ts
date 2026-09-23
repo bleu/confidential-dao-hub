@@ -4,7 +4,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers, fhevm } from "hardhat";
 
-import { BuybackVault, ConfidentialGovToken, MockPriceOracle } from "../../types";
+import { BuybackVault, GenericConfidentialToken, MockPriceOracle } from "../../types";
 
 const T = 10n ** 6n; // 1 token, 6 decimals
 const INITIAL_SUPPLY = 1_000_000n * T;
@@ -24,8 +24,8 @@ type Signers = {
 
 describe("BuybackVault", function () {
   let signers: Signers;
-  let cToken: ConfidentialGovToken;
-  let cUsdt: ConfidentialGovToken;
+  let cToken: GenericConfidentialToken;
+  let cUsdt: GenericConfidentialToken;
   let oracle: MockPriceOracle;
   let vault: BuybackVault;
   let vaultAddress: string;
@@ -41,13 +41,13 @@ describe("BuybackVault", function () {
       this.skip();
     }
 
-    const tokenFactory = await ethers.getContractFactory("ConfidentialGovToken");
+    const tokenFactory = await ethers.getContractFactory("GenericConfidentialToken");
     cToken = (await tokenFactory
       .connect(signers.treasury)
-      .deploy("Confidential Governance Token", "cTOKEN", INITIAL_SUPPLY)) as ConfidentialGovToken;
+      .deploy("Confidential Governance Token", "cTOKEN", INITIAL_SUPPLY)) as GenericConfidentialToken;
     cUsdt = (await tokenFactory
       .connect(signers.treasury)
-      .deploy("Confidential USDT (Mock)", "cUSDT", INITIAL_SUPPLY)) as ConfidentialGovToken;
+      .deploy("Confidential USDT (Mock)", "cUSDT", INITIAL_SUPPLY)) as GenericConfidentialToken;
 
     const oracleFactory = await ethers.getContractFactory("MockPriceOracle");
     oracle = (await oracleFactory.connect(signers.treasury).deploy(PRICE)) as MockPriceOracle;
@@ -74,7 +74,7 @@ describe("BuybackVault", function () {
   }
 
   async function confidentialTransfer(
-    token: ConfidentialGovToken,
+    token: GenericConfidentialToken,
     from: HardhatEthersSigner,
     to: string,
     amount: bigint,
@@ -91,7 +91,7 @@ describe("BuybackVault", function () {
     return fhevm.userDecryptEuint(FhevmType.euint64, handle, contractAddress, user);
   }
 
-  async function balanceOf(token: ConfidentialGovToken, user: HardhatEthersSigner): Promise<bigint> {
+  async function balanceOf(token: GenericConfidentialToken, user: HardhatEthersSigner): Promise<bigint> {
     const handle = await token.confidentialBalanceOf(user.address);
     return decrypt64(handle, await token.getAddress(), user);
   }

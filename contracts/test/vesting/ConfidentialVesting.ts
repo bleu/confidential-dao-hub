@@ -4,13 +4,13 @@ import { mine, takeSnapshot, time } from "@nomicfoundation/hardhat-network-helpe
 import { expect } from "chai";
 import hre, { ethers, fhevm } from "hardhat";
 
-import { ConfidentialGovToken, ConfidentialVesting } from "../../types";
+import { GenericConfidentialToken, ConfidentialVesting } from "../../types";
 
 describe("ConfidentialVesting", function () {
   let treasury: HardhatEthersSigner;
   let recipient: HardhatEthersSigner;
   let outsider: HardhatEthersSigner;
-  let token: ConfidentialGovToken;
+  let token: GenericConfidentialToken;
   let vesting: ConfidentialVesting;
   let address: string;
   let start: number;
@@ -19,7 +19,7 @@ describe("ConfidentialVesting", function () {
   beforeEach(async function () {
     if (!fhevm.isMock) this.skip();
     [treasury, recipient, outsider] = await ethers.getSigners();
-    token = await (await ethers.getContractFactory("ConfidentialGovToken")).deploy("Token", "TOK", 10_000n);
+    token = await (await ethers.getContractFactory("GenericConfidentialToken")).deploy("Token", "TOK", 10_000n);
     vesting = await (await ethers.getContractFactory("ConfidentialVesting")).deploy();
     address = await vesting.getAddress();
     start = (await time.latest()) + 100;
@@ -116,7 +116,7 @@ describe("ConfidentialVesting", function () {
     await token.connect(secondTreasury).setOperator(address, end + 1000);
     await create();
     await create(2000n, secondTreasury, secondRecipient);
-    const otherToken = await (await ethers.getContractFactory("ConfidentialGovToken"))
+    const otherToken = await (await ethers.getContractFactory("GenericConfidentialToken"))
       .connect(secondTreasury)
       .deploy("Other", "OTH", 5000n);
     await otherToken.connect(secondTreasury).setOperator(address, end + 1000);
@@ -199,7 +199,7 @@ describe("ConfidentialVesting", function () {
 
   it("vests the maximum ERC-7984 allocation without intermediate overflow", async function () {
     token = await (
-      await ethers.getContractFactory("ConfidentialGovToken")
+      await ethers.getContractFactory("GenericConfidentialToken")
     ).deploy("Maximum", "MAX", 18446744073709551615n);
     await token.setOperator(address, end + 1000);
     await create(18446744073709551615n);
@@ -223,8 +223,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("preserves claim entitlement when a token returns encrypted zero", async function () {
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     await restricted.setTransferMode(recipient.address, 1);
@@ -239,8 +241,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("preserves claim entitlement when a token reverts", async function () {
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     await restricted.setTransferMode(recipient.address, 2);
@@ -298,8 +302,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("keeps vesting stopped after an encrypted-zero refund and retries only the outstanding refund", async function () {
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     await create(1000n, treasury, outsider);
@@ -338,8 +344,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("rolls back revocation when the initial refund reverts and continues vesting", async function () {
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     await restricted.setTransferMode(treasury.address, 2);
@@ -364,8 +372,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("preserves the original stop time and entitlement when a later refund retry reverts", async function () {
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     await restricted.setTransferMode(treasury.address, 1);
@@ -390,8 +400,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("rejects a nested claim during a token call without consuming either grant", async function () {
-    const callbackToken = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await callbackToken.getAddress());
+    const callbackToken = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = callbackToken;
     await token.setOperator(address, end + 1000);
     const input = await fhevm.createEncryptedInput(address, treasury.address).add64(1000n).encrypt();
     await vesting.createGrant(
@@ -423,8 +435,10 @@ describe("ConfidentialVesting", function () {
   });
 
   it("rejects nested grant actions during funding, revocation, and refund retries", async function () {
-    const callbackToken = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await callbackToken.getAddress());
+    const callbackToken = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = callbackToken;
     await token.setOperator(address, end + 1000);
     const input = await fhevm.createEncryptedInput(address, treasury.address).add64(1000n).encrypt();
     await vesting.createGrant(
@@ -596,7 +610,7 @@ describe("ConfidentialVesting", function () {
       start = 0;
       end = 281474976710655;
       token = await (
-        await ethers.getContractFactory("ConfidentialGovToken")
+        await ethers.getContractFactory("GenericConfidentialToken")
       ).deploy("Maximum", "MAX", 18446744073709551615n);
       await token.setOperator(address, end);
       await create(18446744073709551615n);
@@ -636,8 +650,10 @@ describe("ConfidentialVesting", function () {
     const deployed = await hre.deployments.get("ConfidentialVesting");
     vesting = await ethers.getContractAt("ConfidentialVesting", deployed.address);
     address = deployed.address;
-    const restricted = await (await ethers.getContractFactory("VestingTestToken")).deploy();
-    token = await ethers.getContractAt("ConfidentialGovToken", await restricted.getAddress());
+    const restricted = await (
+      await ethers.getContractFactory("GenericConfidentialToken")
+    ).deploy("Vesting Test Token", "VTT", 10_000n);
+    token = restricted;
     await token.setOperator(address, end + 1000);
     await create();
     expect(await decrypt((await vesting.getGrant(1)).allocation, recipient)).to.equal(1000n);

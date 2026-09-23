@@ -12,4 +12,6 @@ One Hardhat project containing independent feature contracts. Buybacks has a con
 
 See the [root README](../README.md) for setup, the [buybacks guide](../docs/features/buybacks.md) for the existing deployment, and the [payroll guide](../docs/features/payroll.md) for the multisend interface and token requirements. Run `npm ci`, `npm run compile`, and `npm test` from this directory. Use `npm test -- --grep "ConfidentialMultisend"` for payroll tests only.
 
+All buyback, payroll, and vesting tests use `GenericConfidentialToken`. It inherits the demo token and adds unrestricted controls for zero transfers, reverted transfers, and callbacks. These controls are off by default. Use it only in local tests. Demo deployments continue to use `ConfidentialGovToken`.
+
 Features define their own custody and permissions. Mock assets and the buyback disclosure policy are not defaults for production features.

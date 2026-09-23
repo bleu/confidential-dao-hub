@@ -60,7 +60,7 @@ Invalid public inputs, invalid encrypted inputs, failed operator checks, and tok
 
 ## Supported tokens and stuck funds
 
-The caller selects an ERC-7984 token on each call. There is no hardcoded asset, token allowlist, or token-specific decimal conversion. Local standard-token tests use separate instances of the repository's `ConfidentialGovToken`, which inherits the OpenZeppelin ERC-7984 implementation.
+The caller selects an ERC-7984 token on each call. There is no hardcoded asset, token allowlist, or token-specific decimal conversion. Local standard-token tests use separate instances of `GenericConfidentialToken` with its test controls disabled. It inherits the OpenZeppelin ERC-7984 implementation through `ConfidentialGovToken`.
 
 The all-or-zero guarantee requires standard token behavior: a transfer moves the full requested amount or zero on insufficient balance, reports its actual amount, and preserves standard balance and supply accounting. The token must not add fees, partial transfers, or encrypted restrictions that can reject an otherwise funded outgoing payment. An ERC-7984-shaped interface alone does not prove these properties.
 
@@ -80,7 +80,7 @@ Future frontend decryption must isolate sessions by wallet, chain, and feature c
 
 ## Local checks
 
-The payroll tests currently use only `ConfidentialGovToken`, including separate instances for token isolation. They cover its normal payment behavior, insufficient funds, operator permissions, input validation, overflow, and privacy. Custom-token fault tests are deferred, including forced later-transfer reverts, reentry, partial transfers, restrictions, and reused result handles. The contract protections remain in place; this test scope does not establish compatibility with other token implementations.
+The payroll tests use `GenericConfidentialToken` in its default mode, including separate instances for token isolation. This shared mock is for local tests only; never deploy it with real funds. They cover normal payment behavior, insufficient funds, operator permissions, input validation, overflow, and privacy. Custom-token fault tests are deferred, including forced later-transfer reverts, reentry, partial transfers, restrictions, and reused result handles. The contract protections remain in place; this test scope does not establish compatibility with other token implementations.
 
 Run from `contracts/`:
 
@@ -93,6 +93,6 @@ npm run build:ts
 REPORT_GAS=1 npm test -- --grep "ten"
 ```
 
-The ten-entry test measures encrypted-computation use with `fhevm.computeTransactionHCU(receipt)`. The installed local host requires global HCU below `20_000_000` and maximum sequential depth below `5_000_000`. HCU measures encrypted work; EVM gas is a separate limit. The local ten-entry test measured `12_067_120` global HCU, `4_581_032` maximum depth, and about `6.25 million` EVM gas. Gas varies with calldata and test state. These measurements include fresh requested and actual payment references and the reentrancy guard. Local tests do not replace Sepolia verification during the deployment stage.
+The ten-entry test measures encrypted-computation use with `fhevm.computeTransactionHCU(receipt)`. The installed local host requires global HCU below `20_000_000` and maximum sequential depth below `5_000_000`. HCU measures encrypted work; EVM gas is a separate limit. The local ten-entry test measured `12_067_120` global HCU, `4_581_032` maximum depth, and about `6.28 million` EVM gas with the generic test token. Gas varies with calldata and test state. These measurements include fresh requested and actual payment references and the reentrancy guard. Local tests do not replace Sepolia verification during the deployment stage.
 
 API baseline: `@fhevm/solidity` 0.11.1, `@fhevm/hardhat-plugin` 0.4.2, and `@openzeppelin/confidential-contracts` 0.5.1. References: [OpenZeppelin ERC-7984](https://docs.openzeppelin.com/confidential-contracts/api/token), [Zama encrypted inputs](https://docs.zama.org/protocol/solidity-guides/smart-contract/inputs), and [Zama HCU limits](https://docs.zama.org/protocol/solidity-guides/development-guide/hcu).

@@ -100,4 +100,4 @@ npx hardhat deploy --tags ConfidentialVesting --network sepolia
 npx hardhat verify --network sepolia <deployed-address>
 ```
 
-Record the deployed address, ABI, dependency versions, and verification results. Check funding, claims, revocation/refund retries, and decryption access on Sepolia before claiming that stage is complete. Do not deploy `VestingTestToken`; it is a local test adapter with unrestricted controls.
+Record the deployed address, ABI, dependency versions, and verification results. Check funding, claims, revocation/refund retries, and decryption access on Sepolia before claiming that stage is complete. Do not deploy `GenericConfidentialToken`; it is a local test adapter with unrestricted controls.

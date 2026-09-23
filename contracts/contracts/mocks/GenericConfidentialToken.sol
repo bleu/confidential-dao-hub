@@ -3,10 +3,10 @@ pragma solidity ^0.8.27;
 
 import {FHE, euint64} from "@fhevm/solidity/lib/FHE.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {ConfidentialGovToken} from "../ConfidentialGovToken.sol";
+import {ConfidentialGovToken} from "./ConfidentialGovToken.sol";
 
-/// @dev Test-only token restrictions; never deploy with real funds.
-contract VestingTestToken is ConfidentialGovToken {
+/// @dev Local tests only: unrestricted transfer and callback controls. Never deploy with real funds.
+contract GenericConfidentialToken is ConfidentialGovToken {
     error TransferRejected();
 
     mapping(address recipient => uint8 mode) private _transferModes;
@@ -14,7 +14,11 @@ contract VestingTestToken is ConfidentialGovToken {
     address private _callbackTarget;
     bytes private _callbackData;
 
-    constructor() ConfidentialGovToken("Vesting Test Token", "VTT", 10_000) {}
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint64 initialSupply
+    ) ConfidentialGovToken(name_, symbol_, initialSupply) {}
 
     function setTransferMode(address recipient, uint8 mode) external {
         _transferModes[recipient] = mode;
