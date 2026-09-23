@@ -2,7 +2,7 @@
 
 Next.js frontend for confidential DAO treasury operations. `/` opens the workspace chooser. Community lists buybacks at `/community/buybacks` and opens sell/claim at `/community/buybacks/ctoken`. The DAO overview is at `/dao`, with treasury tools at `/dao/buybacks`. Both areas use `/buybacks/report`; its optional `workspace` parameter affects navigation only. The old `/buybacks` route redirects to the list.
 
-Anyone can browse either area. Vesting and Payroll stay Soon. Treasury actions and private amounts depend on the connected wallet's contract permissions, not the selected workspace. The existing Sepolia faucet and mock oracle remain demo tools.
+Anyone can browse either area. The DAO creates and manages its buyback; Community members sell tokens and claim payments. Vesting, Payroll, Payment Requests, Token Launchpad, Governance, and Airdrop / Staking stay Soon in both workspaces. Treasury actions and private amounts depend on the connected wallet's contract permissions, not the selected workspace. The existing Sepolia faucet and mock oracle remain demo tools.
 
 See the [root README](../README.md) for setup and [ADR 0010](../docs/adr/0010-community-dao-workspaces.md) for the decision. Buyback components, ABIs, and deployment addresses live in `src/features/buybacks/`; shared UI and infrastructure live in `src/components/` and `src/lib/`.
 

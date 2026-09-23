@@ -36,6 +36,10 @@ export function workspaceLinks(workspace: Workspace) {
     { href: workspace === "dao" ? routes.treasury : routes.community, label: "Buybacks", soon: false },
     { href: `/${workspace}/vesting`, label: workspace === "community" ? "My vesting" : "Vesting", soon: true },
     { href: `/${workspace}/payroll`, label: workspace === "community" ? "My payroll" : "Payroll", soon: true },
+    { href: `/${workspace}/payment-requests`, label: "Payment Requests", soon: true },
+    { href: `/${workspace}/token-launchpad`, label: "Token Launchpad", soon: true },
+    { href: `/${workspace}/governance`, label: "Governance", soon: true },
+    { href: `/${workspace}/airdrop-staking`, label: "Airdrop / Staking", soon: true },
   ];
 }
 

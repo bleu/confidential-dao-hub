@@ -16,9 +16,9 @@ export default function DaoPage() {
           <Link key={href} href={href} className="flex items-center justify-between gap-4 rounded py-6 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-yellow-400">
             <div>
               <h2 className="text-lg">{label}</h2>
-              {!soon && <p className="mt-1 text-xs text-zinc-500">cTOKEN / Treasury tools and reports</p>}
+              {!soon && <p className="mt-1 text-xs text-zinc-500">cTOKEN / Create and manage buybacks</p>}
             </div>
-            <span className={`text-xs ${soon ? "text-zinc-500" : "text-yellow-300"}`}>{soon ? "Soon" : "Open >"}</span>
+            <span className={`text-xs ${soon ? "text-zinc-500" : "text-yellow-300"}`}>{soon ? "Soon" : "Manage buyback"}</span>
           </Link>
         ))}
       </div>

@@ -224,7 +224,7 @@ export function TreasuryPanel() {
       ) : (
         <section className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-5">
           <h2 className="mb-4 font-mono text-sm uppercase tracking-widest text-zinc-400">
-            open the pool
+            Create buyback
           </h2>
           <div className="flex flex-wrap items-end gap-4">
             <label className="text-sm">
@@ -243,11 +243,11 @@ export function TreasuryPanel() {
               title={vaultActionReason}
               className="rounded border border-yellow-600 bg-yellow-950/40 px-4 py-1.5 font-mono text-sm text-yellow-300 transition-colors hover:bg-yellow-900/40 disabled:opacity-40"
             >
-              {pending === "open" ? "encrypting + opening…" : "encrypt & open"}
+              {pending === "open" ? "Encrypting and creating..." : "Create buyback"}
             </button>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
-            Fund the vault with cUSDT before opening. An underfunded claim can transfer zero payment.
+            Starts the buyback in the existing vault. Fund it with cUSDT first. An underfunded claim can transfer zero payment.
           </p>
         </section>
       )}

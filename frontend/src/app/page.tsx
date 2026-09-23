@@ -10,8 +10,8 @@ export default function Home() {
       </h1>
       <div className="grid gap-4">
         {[
-          { href: routes.community, title: "Community", text: "Buybacks and your payments.", action: "Explore buybacks" },
-          { href: routes.dao, title: "DAO dashboard", text: "Treasury tools and reports.", action: `View ${CURRENT_DAO.name}` },
+          { href: routes.community, title: "Community", text: "Sell tokens and claim payments.", action: "Find a buyback" },
+          { href: routes.dao, title: "DAO dashboard", text: "Create and manage buybacks.", action: `View ${CURRENT_DAO.name}` },
         ].map(({ href, title, text, action }) => (
           <Link
             key={href}

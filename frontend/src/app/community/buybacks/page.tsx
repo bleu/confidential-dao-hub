@@ -13,7 +13,7 @@ export default function CommunityBuybacks() {
         <p className="mt-2 text-sm text-zinc-400">Sell cTOKEN for cUSDT.</p>
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <Link href={routes.sell} className="inline-flex min-h-11 items-center rounded-md bg-yellow-300 px-4 py-2 text-sm text-zinc-950 hover:bg-yellow-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-yellow-400">
-            Open buyback
+            Sell cTOKEN
           </Link>
           <Link href={reportHref("community")} className="inline-flex min-h-11 items-center rounded text-sm text-yellow-300 underline decoration-yellow-800 underline-offset-4 focus-visible:outline-2 focus-visible:outline-yellow-400">
             Public report

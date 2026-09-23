@@ -6,7 +6,7 @@ status: accepted
 
 Move the Community and treasury split out of individual features into a shared left sidebar. The home page lets visitors choose Community or the DAO dashboard. One person can use both, so these workspaces do not define roles or grant access. Use short labels and show permission reasons beside restricted controls rather than repeating explanatory paragraphs.
 
-Community starts with a buyback list, then the seller's offer and claim tools. The DAO dashboard starts with an overview of the current DAO, then its treasury tools. Both areas link to one public buyback report. Vesting and Payroll remain Soon; their eventual Community views should show the connected wallet's grants and payments across DAOs, while buybacks remain browsable. This does not implement those views or their data discovery.
+Community starts with a buyback list, then the seller's offer and claim tools. Use "Sell cTOKEN" for the listing action. The DAO dashboard starts with an overview of the current DAO, then its tools to create and manage the buyback. "Create buyback" starts the existing vault's first epoch; it does not deploy or fund a vault. Both areas link to one public buyback report. Vesting, Payroll, Payment Requests, Token Launchpad, Governance, and Airdrop / Staking remain Soon in both workspaces. The eventual Community views for Vesting and Payroll should show the connected wallet's grants and payments across DAOs, while buybacks remain browsable. This does not implement those views or their data discovery.
 
 ## Scope and access
 
@@ -24,7 +24,7 @@ Mount the existing feature-scoped `DecryptionProvider` on each private buyback p
 - `/dao`: current DAO overview.
 - `/dao/buybacks`: treasury tools.
 - `/buybacks/report`: shared public report. A validated `workspace=community|dao` parameter selects navigation and the return link only.
-- `/community/vesting`, `/community/payroll`, `/dao/vesting`, `/dao/payroll`: Soon pages without private reads or actions.
+- Under both `/community` and `/dao`: `/vesting`, `/payroll`, `/payment-requests`, `/token-launchpad`, `/governance`, and `/airdrop-staking` are Soon pages without private reads or actions.
 
 Redirect `/community` and the old `/buybacks` entry to `/community/buybacks`. Normal links give each screen a reloadable URL and preserve browser back navigation.
 
