@@ -1,4 +1,4 @@
-import { getAddress, keccak256 } from "ethers";
+import { getAddress, keccak256, toUtf8Bytes } from "ethers";
 
 import {
   deploymentEnvironment,
@@ -29,6 +29,8 @@ export interface SepoliaPreflightResult {
   artifactHash: string;
   configuration: DeploymentConfiguration;
   confirmation?: string;
+  creationDataHash: string;
+  deploymentName: string;
   expectedDeployer: string;
   gasBudget?: bigint;
   gasEstimate: bigint;
@@ -42,6 +44,9 @@ export interface SepoliaPreflightResult {
 
 export interface SepoliaPreflightOptions {
   artifact: Pick<RuntimeArtifact, "bytecode">;
+  configuration?: DeploymentConfiguration;
+  creationData?: string;
+  deploymentName?: string;
   feature: DeploymentFeature;
   expectedDeployer?: string;
   gasSettings?: DeploymentGasSettings;
@@ -60,10 +65,6 @@ function normalizeAddress(address: string, name: string): string {
 function parsePositiveInteger(value: string | undefined, name: string): bigint {
   if (!value || !/^\d+$/.test(value) || BigInt(value) === 0n) throw new Error(`${name} must be a positive integer.`);
   return BigInt(value);
-}
-
-export function assertNoExistingSepoliaDeployment(existingAddress: string | undefined): void {
-  if (existingAddress) throw new Error("A Sepolia deployment already exists. Run verify-deployment.ts instead.");
 }
 
 export function getExpectedDeployerAddress(value = process.env.EXPECTED_DEPLOYER_ADDRESS): string {
@@ -91,19 +92,31 @@ export function suggestGasSettings(gasEstimate: bigint, networkFeePerGas: bigint
   return { gasLimit: (gasEstimate * 12n + 9n) / 10n, maxFeePerGas: networkFeePerGas };
 }
 
+function configurationHash(configuration: DeploymentConfiguration): string {
+  return keccak256(toUtf8Bytes(JSON.stringify(configuration)));
+}
+
 export function buildDeploymentConfirmation(input: {
   feature: DeploymentFeature;
-  artifactHash: string;
+  artifactHash?: string;
   chainId: bigint;
+  configuration?: DeploymentConfiguration;
+  creationDataHash?: string;
+  deploymentName?: string;
   gasSettings: DeploymentGasSettings;
   nonce: number;
   signer: string;
 }): string {
+  const deploymentHash = input.creationDataHash ?? input.artifactHash;
+  if (!deploymentHash) throw new Error("Deployment confirmation requires creation data.");
   return [
-    `${input.feature.key}-deploy-v1`,
+    `${input.feature.key}-deploy-v2`,
+    input.feature.tag,
+    input.deploymentName ?? "default",
     input.chainId.toString(),
     getAddress(input.signer).toLowerCase(),
-    input.artifactHash.toLowerCase(),
+    deploymentHash.toLowerCase(),
+    input.configuration ? configurationHash(input.configuration).toLowerCase() : "none",
     input.nonce.toString(),
     input.gasSettings.gasLimit.toString(),
     input.gasSettings.maxFeePerGas.toString(),
@@ -113,7 +126,7 @@ export function buildDeploymentConfirmation(input: {
 export function assertDeploymentConfirmation(value: string | undefined, expected: string): void {
   if (value !== expected) {
     throw new Error(
-      "Deployment confirmation must match the current feature, chain, signer, artifact hash, pending nonce, and gas caps.",
+      "Deployment confirmation must match the feature, contract, creation data, dependencies, signer, chain, pending nonce, and gas caps.",
     );
   }
 }
@@ -129,21 +142,28 @@ export async function runSepoliaPreflight(options: SepoliaPreflightOptions): Pro
   const chainId = BigInt(network.chainId);
   if (chainId !== SEPOLIA_CHAIN_ID) throw new Error("Deployment requires Sepolia chain ID 11155111.");
 
-  const configuration = options.feature.inspectConfiguration
-    ? await options.feature.inspectConfiguration(options.provider)
-    : EMPTY_CONFIGURATION;
+  const configuration =
+    options.configuration ??
+    (options.feature.inspectConfiguration
+      ? await options.feature.inspectConfiguration(options.provider)
+      : EMPTY_CONFIGURATION);
+  const creationData = options.creationData ?? options.artifact.bytecode;
   const feeData = await options.provider.getFeeData();
   const networkFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice;
   if (networkFeePerGas === null || networkFeePerGas <= 0n) {
     throw new Error("Could not determine a positive deployment gas price.");
   }
-  const gasEstimate = await options.provider.estimateGas({ from: signer, data: options.artifact.bytecode });
+  const gasEstimate = await options.provider.estimateGas({ from: signer, data: creationData });
   const nativeBalance = await options.provider.getBalance(signer);
   const nonce = await options.provider.getTransactionCount(signer, "pending");
   const artifactHash = getArtifactHash(options.artifact);
+  const creationDataHash = keccak256(creationData);
+  const deploymentName = options.deploymentName ?? "default";
   const result = {
     artifactHash,
     configuration,
+    creationDataHash,
+    deploymentName,
     expectedDeployer,
     gasEstimate,
     nativeBalance,
@@ -165,9 +185,11 @@ export async function runSepoliaPreflight(options: SepoliaPreflightOptions): Pro
   return {
     ...result,
     confirmation: buildDeploymentConfirmation({
-      feature: options.feature,
-      artifactHash,
+      creationDataHash,
       chainId,
+      configuration,
+      deploymentName,
+      feature: options.feature,
       gasSettings,
       nonce,
       signer,

@@ -103,7 +103,7 @@ npm run preflight:vesting:sepolia
 
 Review the public deployer address and gas estimate. Set `VESTING_DEPLOY_GAS_LIMIT` to the approved maximum gas units and `VESTING_DEPLOY_MAX_FEE_PER_GAS_WEI` to the approved maximum wei per gas, then run preflight again. Their product is the maximum deployment gas cost, and the deployer must hold at least that much ETH. Deployment refuses an estimate that exceeds the caps.
 
-The capped preflight produces `VESTING_DEPLOY_CONFIRMATION`. It binds the chain, signer, artifact, pending nonce, and gas caps. Approve deployment separately, provide the confirmation only for this command, and do not save it in shared configuration.
+The capped preflight produces `VESTING_DEPLOY_CONFIRMATION`. It binds the vesting feature, `ConfidentialVesting`, full creation calldata, dependency configuration hashes, chain, signer, pending nonce, and gas caps. Approve deployment separately, provide the confirmation only for this command, and do not save it in shared configuration. The vesting graph has one contract; after confirmation, a later deploy invocation only verifies and reports the completed deployment without broadcasting.
 
 ```bash
 npm run deploy:vesting:sepolia
@@ -111,6 +111,6 @@ npm run verify:vesting:sepolia
 npx hardhat verify --network sepolia --contract src/vesting/ConfidentialVesting.sol:ConfidentialVesting <deployed-address>
 ```
 
-The verifier checks the receipt and runtime bytecode, then exports the ABI and deployment record to `contracts/deployment-records/vesting/sepolia/`. Source verification is a separate explorer action with no constructor arguments. A failed preflight, deployment, verifier, or explorer request must not cause another deployment or overwrite an existing record. Inspect the transaction and records before retrying.
+The shared verifier reads and checks every vesting descriptor, then exports the ABI and deployment record to `contracts/deployment-records/vesting/sepolia/`. Source verification is a separate explorer action with no constructor arguments. A failed preflight, deployment, verifier, or explorer request must not cause another deployment or overwrite an existing record. Inspect the transaction and records before retrying.
 
 Record the deployed address, ABI, dependency versions, and verification results. Check funding, claims, revocation/refund retries, and decryption access on Sepolia before claiming that stage is complete. Do not deploy `GenericConfidentialToken`; it is a local test adapter with unrestricted controls.

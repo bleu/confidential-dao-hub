@@ -98,7 +98,7 @@ npm run preflight:payroll:sepolia
 
 Review the public deployer address and gas estimate. Set `PAYROLL_DEPLOY_GAS_LIMIT` to the approved maximum gas units and `PAYROLL_DEPLOY_MAX_FEE_PER_GAS_WEI` to the approved maximum wei per gas, then run preflight again. Their product is the maximum deployment gas cost; the deployer must have at least that much ETH. Deployment uses these caps and refuses an estimate that does not fit.
 
-Approve deployment separately. The deploy command requires `PAYROLL_DEPLOY_CONFIRMATION` from the capped preflight; it binds the chain, signer, artifact, pending nonce, and gas caps. Do not keep this confirmation in a shared configuration file.
+Approve deployment separately. The deploy command requires `PAYROLL_DEPLOY_CONFIRMATION` from the capped preflight. It binds the payroll feature, `ConfidentialMultisend`, full creation calldata, dependency configuration hashes, chain, signer, pending nonce, and gas caps. Do not keep this confirmation in a shared configuration file. The payroll graph has one contract; after it is confirmed, a later deploy invocation only verifies and reports the completed deployment without broadcasting.
 
 ```bash
 npm run deploy:payroll:sepolia
@@ -106,7 +106,7 @@ npm run verify:payroll:sepolia
 npx hardhat verify --network sepolia --contract src/payroll/ConfidentialMultisend.sol:ConfidentialMultisend <multisend-address>
 ```
 
-The state verifier checks the deployed contract and exports its ABI and deployment record to `contracts/deployment-records/payroll/sepolia/` relative to the repository root. Review these public files before committing them. The last command submits the current source to Etherscan and has no constructor arguments. A source-verification failure can be retried without rerunning deployment.
+The shared verifier reads and checks every payroll descriptor, then exports its ABI and deployment record to `contracts/deployment-records/payroll/sepolia/` relative to the repository root. Review these public files before committing them. The last command submits the current source to Etherscan and has no constructor arguments. A source-verification failure can be retried without rerunning deployment.
 
 The published payroll ABI and deployment record remain the public record for the existing Sepolia deployment. That record identifies the historical source as `contracts/payroll/ConfidentialMultisend.sol`; the current source is `src/payroll/ConfidentialMultisend.sol`. Recompiling the current source does not verify the historical build. That proof requires the matching original source, compiler settings, and recorded build inputs. Do not redeploy the multisend or overwrite its ABI or deployment record if historical source verification fails.
 

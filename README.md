@@ -51,7 +51,7 @@ contracts/
   test/mocks/                # Shared test-only confidential token
   test/buybacks/             # Existing contract regression suite
   test/payroll/              # Multisend payment and privacy tests
-  deploy/buybacks.ts         # Buyback deployment with its existing identity
+  deploy/buybacks.ts         # Guarded buyback deployment wrapper
   deploy/payroll.ts          # Guarded multisend deployment wrapper
   deploy/vesting.ts          # Guarded immutable vesting deployment wrapper
   test/vesting/              # Grant lifecycle and privacy tests
@@ -93,21 +93,23 @@ The buyback configuration lives in `frontend/src/features/buybacks/contracts.ts`
 
 ## Buyback deployment
 
-From `contracts/`, configure `PRIVATE_KEY` and `RPC_URL` in `.env` for Sepolia; `CUSDT_ADDRESS`, `ORACLE_PRICE`, and `EPOCH_DURATION` are optional overrides.
+Buybacks uses the shared guarded deployment engine. From `contracts/`, configure `PRIVATE_KEY`, `RPC_URL`, and `EXPECTED_DEPLOYER_ADDRESS` locally. `CUSDT_ADDRESS`, `ORACLE_PRICE`, and `EPOCH_DURATION` are optional configuration overrides. Follow the [deployment guide](docs/deployment.md) for the approval cycle, `BUYBACKS_DEPLOY_*` gas variables, and external cUSDT checks.
 
 ```bash
-npx hardhat deploy --tags ConfidentialBuybacks --network sepolia
-npx hardhat run scripts/buybacks/seed.ts --network sepolia
-npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
+npm run preflight:buybacks:sepolia
+npm run deploy:buybacks:sepolia
+npm run verify:buybacks:sepolia
 ```
 
-The seed script is for the default mock payment-token deployment. When using an external `CUSDT_ADDRESS`, fund the vault through that token's supported flow instead. Deployment is an explicit operator action; moving contract source files does not migrate the existing deployment.
+Sepolia deploys one pending buyback contract for each approved preflight. Repeat preflight and deployment until the graph completes, then run verification. The existing `deploy:sepolia` and `deploy:localhost` aliases remain buyback-only and use the same guards.
+
+Seeding is a separate treasury action for the default mock payment token only. It funds the vault and opens a demo epoch. Approve that funding separately from contract deployment. When using an external `CUSDT_ADDRESS`, do not run the seed script; fund and initialize the vault through the token's supported flow.
 
 ## Feature deployment
 
-Payroll and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia; vesting is not deployed. Both remain Soon in the app.
+Buybacks, payroll, and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia; vesting is not deployed. Both remain Soon in the app.
 
-Buybacks retains its custom deployment flow. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only. The [payroll guide](docs/features/payroll.md#sepolia-deployment) and [vesting guide](docs/features/vesting.md#later-sepolia-deployment) give their feature-specific steps.
+Buyback seeding and private state verification remain feature-only operations. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only, with the same guarded deployment flow. The [buybacks guide](docs/features/buybacks.md), [payroll guide](docs/features/payroll.md#sepolia-deployment), and [vesting guide](docs/features/vesting.md#later-sepolia-deployment) give feature-specific steps.
 
 ## Extending the hub
 

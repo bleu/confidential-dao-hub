@@ -1,14 +1,13 @@
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 
-import { verifyAndExportDeployment } from "./export";
-import { deploymentEnvironment, EMPTY_CONFIGURATION, type DeploymentFeature } from "./feature";
+import { deploymentEnvironment, type DeploymentFeature } from "./feature";
+import { findDeploymentProgress, prepareFeature } from "./preparation";
 import {
   getDeploymentGasSettings,
   getExpectedDeployerAddress,
   runSepoliaPreflight,
   SEPOLIA_CHAIN_ID,
 } from "./preflight";
-import { loadRuntimeArtifact } from "./provenance";
 
 export async function runPreflightCommand(hre: HardhatRuntimeEnvironment, feature: DeploymentFeature): Promise<void> {
   const keys = deploymentEnvironment(feature);
@@ -16,20 +15,40 @@ export async function runPreflightCommand(hre: HardhatRuntimeEnvironment, featur
   const hasMaxFee = process.env[keys.maxFeePerGas] !== undefined;
   if (hasGasLimit !== hasMaxFee) throw new Error(`Set both ${keys.gasLimit} and ${keys.maxFeePerGas}.`);
   const { deployer } = await hre.getNamedAccounts();
+  const network = await hre.ethers.provider.getNetwork();
+  if (BigInt(network.chainId) !== SEPOLIA_CHAIN_ID) throw new Error("Deployment requires Sepolia chain ID 11155111.");
+  const prepared = await prepareFeature(hre, feature);
+  const progress = await findDeploymentProgress({
+    hre,
+    networkChainId: SEPOLIA_CHAIN_ID,
+    prepared,
+    signer: deployer,
+  });
+  if (progress.complete) {
+    console.log(`feature: ${feature.key}`);
+    console.log("deployment: complete");
+    return;
+  }
+  if (!progress.pending) throw new Error("Deployment progress has no pending contract.");
   const result = await runSepoliaPreflight({
-    artifact: await loadRuntimeArtifact(hre, feature),
-    feature,
+    artifact: progress.pending.artifact,
+    configuration: progress.pending.configuration,
+    creationData: progress.pending.creationData,
+    deploymentName: progress.pending.contract.name,
     expectedDeployer: getExpectedDeployerAddress(),
+    feature,
     gasSettings: hasGasLimit ? getDeploymentGasSettings(feature) : undefined,
     provider: hre.ethers.provider,
     signer: deployer,
   });
 
   console.log(`feature: ${feature.key}`);
+  console.log(`contract: ${result.deploymentName}`);
   console.log(`chainId: ${SEPOLIA_CHAIN_ID}`);
   console.log(`signer: ${result.signer}`);
   console.log(`nonce: ${result.nonce}`);
   console.log(`artifactHash: ${result.artifactHash}`);
+  console.log(`creationDataHash: ${result.creationDataHash}`);
   console.log(`nativeBalanceWei: ${result.nativeBalance}`);
   console.log(`gasEstimate: ${result.gasEstimate}`);
   console.log(`networkFeePerGasWei: ${result.networkFeePerGas}`);
@@ -46,27 +65,22 @@ export async function runPreflightCommand(hre: HardhatRuntimeEnvironment, featur
 }
 
 export async function runVerifyCommand(hre: HardhatRuntimeEnvironment, feature: DeploymentFeature): Promise<void> {
-  const provider = hre.ethers.provider;
-  const network = await provider.getNetwork();
-  if (network.chainId !== SEPOLIA_CHAIN_ID) throw new Error("Deployment records are exported only for Sepolia.");
-  const deployment = await hre.deployments.get(feature.contractName);
-  if (!deployment.transactionHash) throw new Error("The deployment has no transaction hash.");
-  const transaction = await provider.getTransaction(deployment.transactionHash);
-  const receipt = await provider.getTransactionReceipt(deployment.transactionHash);
-  if (!transaction) throw new Error("Deployment transaction is unavailable.");
-  await verifyAndExportDeployment({
-    artifact: await loadRuntimeArtifact(hre, feature),
-    feature,
-    chainId: network.chainId,
-    contractAddress: deployment.address,
-    deployer: transaction.from,
-    configuration: feature.inspectConfiguration ? await feature.inspectConfiguration(provider) : EMPTY_CONFIGURATION,
-    nonce: transaction.nonce,
-    provider,
-    receipt,
-    repositoryRoot: hre.config.paths.root,
-    transaction,
-    transactionHash: deployment.transactionHash,
+  const network = await hre.ethers.provider.getNetwork();
+  if (BigInt(network.chainId) !== SEPOLIA_CHAIN_ID)
+    throw new Error("Deployment records are exported only for Sepolia.");
+  const { deployer } = await hre.getNamedAccounts();
+  const prepared = await prepareFeature(hre, feature);
+  const progress = await findDeploymentProgress({
+    hre,
+    networkChainId: SEPOLIA_CHAIN_ID,
+    prepared,
+    signer: deployer,
+    writeRecords: true,
   });
-  console.log(`Verified and exported ${feature.key}: ${deployment.address}`);
+  if (!progress.complete) {
+    throw new Error(
+      `Deployment ${progress.pending?.contract.name ?? "state"} is still pending. Run the approved deployment command.`,
+    );
+  }
+  console.log(`Verified and exported ${feature.key}.`);
 }

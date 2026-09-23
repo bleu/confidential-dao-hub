@@ -1,20 +1,20 @@
 # Feature deployment
 
-Payroll and vesting use the guarded feature deployment helpers in `contracts/scripts/deployment/`. Buybacks keeps its own deployment and verification flow. The generic `deploy:sepolia` and `deploy:localhost` npm commands are tagged for buybacks only.
+Buybacks, payroll, and vesting use the shared guarded deployment engine in `contracts/scripts/deployment/`. Feature-only operations stay outside it: buyback seeding and private state verification remain in `scripts/buybacks/`, and payroll live evidence remains in `scripts/payroll/`.
 
 ## Feature configuration
 
-Each supported feature has a typed `DeploymentFeature` configuration in `contracts/scripts/<feature>/deployment.ts`. It defines `key`, `contractName`, `deploymentId`, and `envPrefix`. A feature can also provide `inspectConfiguration(provider)` to collect public configuration metadata, such as token code metadata for payroll.
+Each feature defines a typed `DeploymentFeature` in `contracts/scripts/<feature>/deployment.ts`. It has `key`, `tag`, `deploymentId`, `envPrefix`, and `contracts(input)`, which returns an ordered list of `DeploymentContract` descriptors. Do not configure a source name; the engine derives output provenance.
 
-The shared helpers derive ABI and deployment-record output names from `key` and `contractName`. For example, payroll exports `deployment-records/payroll/sepolia/ConfidentialMultisend.abi.json`. Do not add deployment-wide fields for a dependency that belongs only to one feature. Payroll requires its demo token code check through `inspectConfiguration`; vesting has no such check.
+A descriptor defines `name`, `artifactName`, and `args(addresses)`, which returns constructor arguments. It can also declare `dependencies`, an `immutableAddresses` callback, `administrator: "deployer"`, and `externalAddress`. List each dependency before the contract that uses it. `externalAddress` identifies a contract that this feature reuses instead of deploying. The shared engine checks external-address syntax and code before it sends any transaction.
 
-The helpers deploy contracts without constructor arguments, linked libraries, or immutable references. A feature that needs any of those must use a different deployment design. The helpers fail explicitly instead of silently producing an incomplete deployment.
+The engine supports constructor arguments and checks each configured immutable address slot after deployment. It fails for linked libraries and unsupported immutable layouts. It derives deployment records and ABI output names from the feature and descriptor names. Every `deploy/*.ts` file is a thin `createFeatureDeployment(config)` wrapper.
+
+Buybacks keeps the `ConfidentialBuybacks` tag and `deploy_confidential_buybacks_v2` deployment ID. Its graph deploys `ConfidentialGovToken`, then includes the default `ConfidentialUSDT` mock descriptor unless `CUSDT_ADDRESS` selects an external cUSDT alias, then deploys `MockPriceOracle` and `BuybackVault`. The existing defaults remain an initial supply of 1,000,000 tokens at six decimals, oracle price `200`, and epoch duration `900` seconds unless their environment overrides apply. The vault receives the configured dependency addresses as constructor arguments, and its immutable addresses are checked. Payroll and vesting keep their existing tags, deployment IDs, and output paths. The historical payroll ABI and deployment record remain unchanged.
 
 ## Add a feature
 
-Add one configuration and three thin wrappers. The preflight and verification wrappers convert unknown errors with `safeCommandError(error)` and set a failing exit code. They do not implement deployment logic.
-
-The configuration imports `DeploymentFeature` from the shared deployment types. The command wrappers import `hre` from `hardhat`, their command function from `../deployment/commands`, and `safeCommandError` from `../deployment/errors`.
+Add one configuration and three thin wrappers. The preflight and verification wrappers pass the Hardhat runtime environment to the shared commands and convert unknown errors with `safeCommandError(error)`.
 
 ```ts
 // scripts/example/deployment.ts
@@ -22,9 +22,16 @@ import type { DeploymentFeature } from "../deployment/feature";
 
 export const exampleFeature: DeploymentFeature = {
   key: "example",
-  contractName: "Example",
+  tag: "Example",
   deploymentId: "deploy_example_v1",
   envPrefix: "EXAMPLE",
+  contracts: () => [
+    {
+      name: "Example",
+      artifactName: "Example",
+      args: () => [],
+    },
+  ],
 };
 
 // scripts/example/preflight.ts
@@ -68,7 +75,7 @@ import { exampleFeature } from "../scripts/example/deployment";
 export default createFeatureDeployment(exampleFeature);
 ```
 
-The shared exports are `runPreflightCommand(hre, feature)`, `runVerifyCommand(hre, feature)`, and `createFeatureDeployment(feature)`. Keep the existing deployment tag and deployment ID when converting a feature. Add aliases that select that feature's tag:
+Add aliases that select the feature tag:
 
 ```json
 {
@@ -80,11 +87,21 @@ The shared exports are `runPreflightCommand(hre, feature)`, `runVerifyCommand(hr
 
 ## Sepolia procedure
 
-Set `PRIVATE_KEY`, `RPC_URL`, and `EXPECTED_DEPLOYER_ADDRESS` locally. The expected address is shared by all guarded feature deployments. Set `<PREFIX>_DEPLOY_GAS_LIMIT` and `<PREFIX>_DEPLOY_MAX_FEE_PER_GAS_WEI` after reviewing the preflight output. Their product is the approved maximum gas cost.
+Set `PRIVATE_KEY`, `RPC_URL`, and `EXPECTED_DEPLOYER_ADDRESS` locally. The expected address is shared by all guarded feature deployments. Set `<PREFIX>_DEPLOY_GAS_LIMIT` and `<PREFIX>_DEPLOY_MAX_FEE_PER_GAS_WEI` after reviewing preflight. Their product is the approved maximum gas cost.
 
-Run the feature preflight. It checks the chain, signer, artifact, pending nonce, and gas caps. It produces `<PREFIX>_DEPLOY_CONFIRMATION`, which binds those values. Supply that confirmation only for the approved deployment command. Do not store it in shared configuration.
+A Sepolia preflight selects one pending descriptor. It checks the chain, signer, full creation calldata including constructor arguments, dependency configuration hashes, pending nonce, and gas caps. It produces `<PREFIX>_DEPLOY_CONFIRMATION`, which binds the feature and selected contract to those values.
 
-Run the feature verifier after the deployment confirms. It checks the receipt and runtime bytecode, then exports the ABI and public deployment record. Source verification is a separate explorer action. A failed preflight, deployment, verifier, or explorer request must not trigger another deployment or overwrite an existing public record. Check the existing transaction and record before any retry.
+Run preflight, approve its output, then run deploy. Repeat that sequence with a fresh confirmation for every remaining descriptor. A completed feature logs the completed graph and broadcasts no transaction, so it needs no new confirmation. Existing confirmed descriptors are verified and reused. A mismatch fails and never causes an automatic replacement.
+
+Run the feature verifier after the graph is complete. It reads and verifies every descriptor, then writes an ABI and deployment record for each. Buyback output is under `deployment-records/buybacks/sepolia/<DeploymentName>/`. Payroll and vesting keep their existing output paths. Explorer source verification is a separate action.
+
+A failed preflight, deployment, verifier, or explorer request must not trigger another deployment or overwrite an existing public record. Check the existing transaction and records before any retry. A local tag deployment runs the complete feature graph without the Sepolia approval cycle.
+
+## Feature commands
+
+Use `preflight:buybacks:sepolia`, `deploy:buybacks:sepolia`, and `verify:buybacks:sepolia` for buybacks. Use the matching payroll and vesting aliases for those features. The older `deploy:sepolia` and `deploy:localhost` aliases remain buyback-only and apply the same guards.
+
+The buyback gas variables are `BUYBACKS_DEPLOY_GAS_LIMIT`, `BUYBACKS_DEPLOY_MAX_FEE_PER_GAS_WEI`, and `BUYBACKS_DEPLOY_CONFIRMATION`. Payroll and vesting use the same names with their own prefixes. `CUSDT_ADDRESS` makes buybacks reuse an external payment token; it must pass the external-address checks before the engine creates a new contract.
 
 ## Payroll history
 

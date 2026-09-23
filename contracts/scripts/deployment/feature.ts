@@ -1,9 +1,9 @@
 import type { Provider } from "ethers";
 
 export interface DeploymentConfiguration {
-  administrator: null;
-  constructorArguments: [];
-  dependencies: [];
+  administrator: string | null;
+  constructorArguments: unknown[];
+  dependencies: { name: string; address: string; codeHash: string }[];
   token?: {
     address: string;
     codeHash: string;
@@ -11,11 +11,22 @@ export interface DeploymentConfiguration {
   };
 }
 
+export interface DeploymentContract {
+  name: string;
+  artifactName: string;
+  args?: (addresses: Readonly<Record<string, string>>) => unknown[];
+  dependencies?: string[];
+  immutableAddresses?: (addresses: Readonly<Record<string, string>>) => Record<string, string>;
+  administrator?: "deployer";
+  externalAddress?: string;
+}
+
 export interface DeploymentFeature {
   key: string;
-  contractName: string;
+  tag: string;
   deploymentId: string;
   envPrefix: string;
+  contracts: (input: NodeJS.ProcessEnv) => DeploymentContract[];
   inspectConfiguration?: (provider: Pick<Provider, "getCode">) => Promise<DeploymentConfiguration>;
 }
 

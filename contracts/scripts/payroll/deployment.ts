@@ -6,7 +6,8 @@ export const SEPOLIA_MOCK_TOKEN_ADDRESS = "0x5ffb152C8D371Ae59c25689c9F0F6e8a914
 
 export const payrollDeployment: DeploymentFeature = {
   key: "payroll",
-  contractName: "ConfidentialMultisend",
+  tag: "ConfidentialMultisend",
+  contracts: () => [{ name: "ConfidentialMultisend", artifactName: "ConfidentialMultisend" }],
   deploymentId: "deploy_confidential_multisend_v1",
   envPrefix: "PAYROLL",
   async inspectConfiguration(provider) {
