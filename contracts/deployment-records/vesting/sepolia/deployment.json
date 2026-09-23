@@ -1,0 +1,66 @@
+{
+  "abiFile": "ConfidentialVesting.abi.json",
+  "artifact": {
+    "abiHash": "0x7fff5ba3107badbcd114dce88b19bb80855b5d6625cabc84a8f6555d3b937707",
+    "compiledSourceHash": "844d2b4bc15afb0e1ae3f9ae85ba5056986484197f1408d548880f29e90aeb89",
+    "compilerInputHash": "5af4703df721c22bd42887e73d0cf6c01ad0dc7450459babee5ae543b176d841",
+    "creationBytecodeHash": "0x8bff1ea26abb64f814afd3b099c9094e1c88bbfe52a86ea3d1d1493cf8610d94",
+    "runtimeBytecodeHash": "0x978ba0354ab5f657f5b76eb56d929db162098877141d5350c88fc9dd4dda9323"
+  },
+  "blockNumber": 11766387,
+  "chainId": "11155111",
+  "compiler": {
+    "settings": {
+      "metadata": {
+        "bytecodeHash": "none",
+        "useLiteralContent": true
+      },
+      "optimizer": {
+        "enabled": true,
+        "runs": 800
+      },
+      "evmVersion": "cancun",
+      "outputSelection": {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata",
+            "devdoc",
+            "userdoc",
+            "storageLayout",
+            "evm.gasEstimates"
+          ],
+          "": [
+            "ast"
+          ]
+        }
+      }
+    },
+    "version": "0.8.27+commit.40a35a09"
+  },
+  "configuration": {
+    "administrator": null,
+    "constructorArguments": [],
+    "dependencies": []
+  },
+  "contractAddress": "0xD75E947e4262627E8fbE009585206F461afFA4b1",
+  "contractName": "ConfidentialVesting",
+  "deployer": "0x76b0340e50BD9883D8B2CA5fd9f52439a9e7Cf58",
+  "gitCommit": "7033f9b24ccb66147bc89e9ade36fae9378ea3e5",
+  "nonce": 428,
+  "schemaVersion": 1,
+  "source": {
+    "currentHash": "844d2b4bc15afb0e1ae3f9ae85ba5056986484197f1408d548880f29e90aeb89",
+    "matchesCompiledSource": true
+  },
+  "sourceName": "src/vesting/ConfidentialVesting.sol",
+  "transactionHash": "0xd217c01a59c403cf564df4aab6480dd7912ffd03d548670239808fe6b67cee9b",
+  "verifiedRuntime": {
+    "deployedRuntimeBytecodeHash": "0x978ba0354ab5f657f5b76eb56d929db162098877141d5350c88fc9dd4dda9323",
+    "immutableReferenceCount": 0,
+    "normalizedRuntimeBytecodeHash": "0x978ba0354ab5f657f5b76eb56d929db162098877141d5350c88fc9dd4dda9323"
+  }
+}

@@ -104,16 +104,31 @@ Use Node 22.13 or newer, as described in the hub README.
 # Contracts
 cd contracts
 npm install
-npm test                                  # 21 tests on the FHEVM mock
+npm test                                  # All contract tests on the FHEVM mock
 
-# Deploy to Sepolia (.env: PRIVATE_KEY, RPC_URL; optional CUSDT_ADDRESS)
-npx hardhat deploy --network sepolia
-npx hardhat run scripts/buybacks/seed.ts --network sepolia    # fund vault + open demo epoch
+# Guarded Sepolia deployment (.env: PRIVATE_KEY, RPC_URL, EXPECTED_DEPLOYER_ADDRESS)
+npm run preflight:buybacks:sepolia
+npm run deploy:buybacks:sepolia
+npm run verify:buybacks:sepolia
 
 # Frontend (contract addresses live in src/features/buybacks/contracts.ts)
 cd ../frontend
 npm install
 npm run dev
+```
+
+Set `BUYBACKS_DEPLOY_GAS_LIMIT` and `BUYBACKS_DEPLOY_MAX_FEE_PER_GAS_WEI` after reviewing preflight, then rerun it to produce `BUYBACKS_DEPLOY_CONFIRMATION`. Sepolia deploys one pending contract for each approved invocation. Rerun preflight and deploy with a fresh confirmation until the buyback graph is complete, then verify it. Set `CUSDT_ADDRESS` only for an external payment token; its address syntax and deployed code are checked before the engine sends any new transaction. See the [deployment guide](../deployment.md) for the full procedure.
+
+Deployment does not approve or perform treasury funding. Approve vault funding and epoch opening as a separate treasury action. The seed script only supports the default deployed `ConfidentialUSDT` mock; it transfers demo cUSDT to the vault and opens a demo epoch. Do not run it when `CUSDT_ADDRESS` selects an external payment token. Use that token's supported funding and initialization flow instead.
+
+Run these commands from `contracts/`:
+
+```bash
+# Default mock payment token only, after separate treasury approval
+npx hardhat run scripts/buybacks/seed.ts --network sepolia
+
+# Feature-only private state check; it does not deploy contracts
+npx hardhat run scripts/buybacks/verify-state.ts --network sepolia
 ```
 
 Demo flow with two wallets: **Seller** uses `/community/buybacks/ctoken` to get cTOKEN from the faucet, approve the vault as operator for 24 hours, and submit an encrypted offer with a private price floor. **Treasury** uses `/dao/buybacks` to decrypt remaining/total, move the mock oracle, and settle the epoch. **Seller** decrypts fill and floor, then claims payout and refund. **Anyone** can request and publish eligible epoch totals at `/buybacks/report` after the disclosure delay.
