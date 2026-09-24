@@ -43,7 +43,12 @@ test("each workspace has its own feature links and Soon destinations", () => {
   assert.deepEqual(community.map(({ label }) => label), ["Buybacks", "My vesting", "My payroll", ...restoredLabels]);
   assert.deepEqual(dao.map(({ label }) => label), ["Overview", "Buybacks", "Vesting", "Payroll", ...restoredLabels]);
   for (const [workspace, links] of [["community", community], ["dao", dao]]) {
-    const soonPaths = ["vesting", "payroll", "payment-requests", "token-launchpad", "governance", "airdrop-staking"]
+    const vestingPath = workspace === "dao" ? routes.daoVesting : routes.communityVesting;
+    assert.equal(links.find(({ href }) => href === vestingPath)?.soon, false);
+    assert.equal(workspaceForPath(vestingPath), workspace);
+    assert.deepEqual(links.filter((link) => isWorkspaceLinkActive(vestingPath, link.href)).map((link) => link.href), [vestingPath]);
+
+    const soonPaths = ["payroll", "payment-requests", "token-launchpad", "governance", "airdrop-staking"]
       .map((feature) => `/${workspace}/${feature}`);
     assert.deepEqual(links.filter(({ soon }) => soon).map(({ href }) => href), soonPaths);
     for (const href of soonPaths) {
