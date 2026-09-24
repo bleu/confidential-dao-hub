@@ -221,15 +221,16 @@ function DaoPayroll({ selectedToken: selectedTokenOption, onTokenChange }: { sel
       <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h2 className="text-xl text-zinc-100">Payment entries</h2>
-          <div className="text-right">
-            <p className="font-mono text-xs uppercase tracking-widest text-zinc-500">Requested total</p>
-            <p className="mt-1 font-mono text-lg text-zinc-100">{validation.total === undefined || !token ? "Fix entries" : `${formatTokenAmount(validation.total, token.decimals)} ${token.symbol}`}</p>
-          </div>
+          <label className="grid w-full gap-1 text-xs text-zinc-400 sm:w-52">Payment token
+            <span className="relative">
+              <select value={tokenAddress} onChange={(event) => { const next = PAYROLL_TOKENS.find((token) => token.address === event.target.value); if (next) onTokenChange(next); }} disabled={sending} className={`${inputClass()} appearance-none pr-9`}>{PAYROLL_TOKENS.map((option) => <option key={option.address} value={option.address}>{option.label}</option>)}</select>
+              <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 stroke-zinc-400"><path d="m4 6 4 4 4-4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </span>
+          </label>
         </div>
-        <label className="mt-5 grid gap-1 text-xs text-zinc-400">Payment token<select value={tokenAddress} onChange={(event) => { const next = PAYROLL_TOKENS.find((token) => token.address === event.target.value); if (next) onTokenChange(next); }} disabled={sending} className={inputClass()}>{PAYROLL_TOKENS.map((option) => <option key={option.address} value={option.address}>{option.label}</option>)}</select>{token && <span className="font-mono text-xs text-zinc-500">{token.symbol} · {token.decimals} decimals</span>}</label>
         <div className="mt-6 space-y-3">{entries.map((entry, index) => <PaymentRow key={entry.id} entry={entry} index={index} validation={validation} token={token} showValidation={showValidation} touched={touched[entry.id]} locked={sending} canRemove={entries.length > 1} onChange={updateEntry} onBlur={(id, field) => setTouched((current) => ({ ...current, [id]: { ...current[id], [field]: true } }))} onRemove={(id) => setEntries((current) => current.length > 1 ? current.filter((entry) => entry.id !== id) : current)} />)}</div>
         {showValidation && validation.form && <p className="mt-3 text-sm text-red-300">{validation.form}</p>}
-        <div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => setEntries((current) => current.length < MAX_ENTRIES ? [...current, { id: `entry-${nextEntryId.current++}`, recipient: "", amount: "" }] : current)} disabled={sending || entries.length >= MAX_ENTRIES} className={secondary}>Add recipient</button><span className="self-center font-mono text-xs text-zinc-500">{entries.length}/{MAX_ENTRIES} entries</span></div>
+        <div className="mt-5 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setEntries((current) => current.length < MAX_ENTRIES ? [...current, { id: `entry-${nextEntryId.current++}`, recipient: "", amount: "" }] : current)} disabled={sending || entries.length >= MAX_ENTRIES} className={secondary}>Add recipient</button><div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1 font-mono text-xs text-zinc-500"><span>{validation.total === undefined || !token ? "Fix entries" : `Requested total: ${formatTokenAmount(validation.total, token.decimals)} ${token.symbol}`}</span><span>{entries.length}/{MAX_ENTRIES} entries</span></div></div>
         <div aria-live="polite" className="mt-7 border-t border-zinc-800 pt-5">
           {accessMessage && <p className="mb-3 text-sm text-yellow-200">{accessMessage}</p>}
           {error && <p className="mb-3 text-sm text-red-300">{error}</p>}

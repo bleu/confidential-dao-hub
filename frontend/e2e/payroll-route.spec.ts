@@ -106,14 +106,14 @@ test("Sepolia payroll only offers cUSDT and cTOKEN", async ({ page }) => {
   await expect(token).toHaveValue("0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f");
 });
 
-test("Sepolia payroll reads the selected token identity", async ({ page }) => {
+test("Sepolia payroll does not show token decimal metadata", async ({ page }) => {
   await installWallet(page, "0xaa36a7");
   await installPayrollRpc(page);
   await page.goto("/dao/payroll");
 
   await page.getByRole("button", { name: "connect wallet" }).click();
 
-  await expect(page.getByText("cUSDT · 6 decimals")).toBeVisible();
+  await expect(page.getByText("cUSDT · 6 decimals")).not.toBeVisible();
 });
 
 test("Sepolia wallet can authorize the multisend after token reads load", async ({ page }) => {
