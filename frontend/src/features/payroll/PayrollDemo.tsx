@@ -1,29 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { decodeEventLog, isAddress, type Address, type Hex } from "viem";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useAccount, usePublicClient, useReadContract, useSignTypedData } from "wagmi";
+import { sepolia } from "wagmi/chains";
 
-import { isCurrentMockPrivateRead, mockPaymentPrivateReadScope, type PrivateRead } from "./mockPrivateState";
-import { CUSDT, DEFAULT_ENTRIES, DEMO_RECEIVER, FUNDED_SENDER, MULTISEND_ADDRESS } from "./mock";
-import { type SentPayment, usePayrollLedger } from "./PayrollDemoLedger";
-import {
-  formatTokenAmount,
-  hasEnoughBalance,
-  MAX_ENTRIES,
-  parseTokenAmount,
-  type PaymentEntry,
-  type Validation,
-  validateEntries,
-} from "./model";
+import { DecryptionProvider, useDecryption } from "@/lib/decryption-context";
+import { encryptValues } from "@/lib/fhevm";
+import { useTx } from "@/lib/useTx";
+
+import { confidentialTokenAbi, PAYROLL_CONTRACTS, payrollDecryptionScope, payrollMultisendAbi } from "./contracts";
+import { formatTokenAmount, MAX_ENTRIES, parseTokenAmount, type PaymentEntry, type Token, type Validation, validateEntries } from "./model";
 
 type Workspace = "dao" | "community";
-type PaymentStatus = "editing" | "checking-balance" | "approving" | "sending" | "verifying" | "complete";
 type TouchedFields = Record<string, { recipient?: boolean; amount?: boolean }>;
-type FrozenPayment = {
+type PaymentRecord = {
   id: string;
-  entries: Array<PaymentEntry & { requested: bigint }>;
-  total: bigint;
+  transactionHash: Hex;
+  logIndex: number;
+  sender: Address;
+  token: Address;
+  recipient: Address;
+  requestedAmount: Hex;
+  actualAmount: Hex;
+};
+type FrozenPayment = {
+  account: Address;
+  chainId: number;
+  token: Address;
+  recipients: Address[];
+  amounts: bigint[];
 };
 
+type PaymentContext = Pick<FrozenPayment, "account" | "chainId" | "token">;
+
+const DEPLOYMENT_BLOCK = 11765852n;
+const DEFAULT_ENTRIES: PaymentEntry[] = [{ id: "entry-1", recipient: "", amount: "" }];
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400";
 const action = `inline-flex min-h-11 items-center justify-center rounded-md bg-yellow-300 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${focus}`;
 const secondary = `inline-flex min-h-11 items-center justify-center rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:text-zinc-500 ${focus}`;
@@ -33,418 +45,296 @@ function cloneEntries(entries: PaymentEntry[]) {
   return entries.map((entry) => ({ ...entry }));
 }
 
-function isBusy(status: PaymentStatus) {
-  return status === "checking-balance" || status === "approving" || status === "sending" || status === "verifying";
+function tokenFromMetadata(address: Address | undefined, symbol: string | undefined, decimals: number | undefined): Token | undefined {
+  if (!address || !symbol || decimals === undefined) return undefined;
+  return { address, symbol, decimals };
 }
 
-function flowLabel(status: PaymentStatus) {
-  if (status === "checking-balance") return "Checking balance...";
-  if (status === "approving") return "Approving...";
-  if (status === "sending") return "Sending...";
-  if (status === "verifying") return "Verifying payment...";
-  return "Sign to check balance";
-}
-
-function flowMessage(status: PaymentStatus) {
-  if (status === "checking-balance") return "Checking mock balance...";
-  if (status === "approving") return "Approving mock token...";
-  if (status === "sending") return "Sending mock payments...";
-  if (status === "verifying") return "Confirmed. Verifying payment...";
-  return null;
-}
-
-function privateResult(payment: SentPayment) {
-  if (payment.verification === "pending") return "Awaiting verification";
-  return payment.actual === payment.requested ? "Verified paid" : "Verified zero";
-}
-
-function privateResultClass(payment: SentPayment) {
-  if (payment.verification === "pending") return "text-zinc-300";
-  return payment.actual === payment.requested ? "text-green-200" : "text-yellow-200";
-}
-
-function usePrivateRead(scope: string) {
-  const [privateRead, setPrivateRead] = useState<PrivateRead>({ scope, phase: "locked" });
-  const version = useRef(0);
-  const timers = useRef<number[]>([]);
-
-  const clearTimers = () => {
-    timers.current.forEach((timer) => window.clearTimeout(timer));
-    timers.current = [];
-  };
-
-  const clear = () => {
-    version.current += 1;
-    clearTimers();
-    setPrivateRead({ scope, phase: "locked" });
-  };
-
-  useEffect(() => {
-    version.current += 1;
-    clearTimers();
-    setPrivateRead({ scope, phase: "locked" });
-
-    return () => {
-      version.current += 1;
-      clearTimers();
+function decodePayment(log: { address: Address; data: Hex; topics: readonly Hex[]; transactionHash: Hex | null; logIndex: number | null }): PaymentRecord | undefined {
+  if (log.address.toLowerCase() !== PAYROLL_CONTRACTS.multisend.toLowerCase() || !log.transactionHash || log.logIndex === null) return undefined;
+  try {
+    const event = decodeEventLog({ abi: payrollMultisendAbi, data: log.data, topics: log.topics as [Hex, ...Hex[]] });
+    if (event.eventName !== "Payment") return undefined;
+    const { sender, token, recipient, requestedAmount, actualAmount } = event.args;
+    if (!sender || !token || !recipient || !requestedAmount || !actualAmount) return undefined;
+    return {
+      id: `${log.transactionHash}:${log.logIndex}`,
+      transactionHash: log.transactionHash,
+      logIndex: log.logIndex,
+      sender,
+      token,
+      recipient,
+      requestedAmount,
+      actualAmount,
     };
-  }, [scope]);
-
-  const request = () => {
-    version.current += 1;
-    clearTimers();
-    setPrivateRead({ scope, phase: "awaiting-signature" });
-  };
-
-  const confirm = () => {
-    if (privateRead.scope !== scope || privateRead.phase !== "awaiting-signature") return;
-    const currentVersion = version.current;
-    setPrivateRead({ scope, phase: "decrypting" });
-    const timer = window.setTimeout(() => {
-      timers.current = timers.current.filter((current) => current !== timer);
-      if (isCurrentMockPrivateRead({ scope, phase: "decrypting" }, scope, currentVersion, version.current)) {
-        setPrivateRead({ scope, phase: "revealed" });
-      }
-    }, 500);
-    timers.current.push(timer);
-  };
-
-  return {
-    privateRead,
-    detailsVisible: privateRead.scope === scope && privateRead.phase === "revealed",
-    request,
-    confirm,
-    clear,
-  };
-}
-
-export function PayrollDemo({ workspace }: { workspace: Workspace }) {
-  return workspace === "dao" ? <DaoPayrollDemo /> : <CommunityPayrollDemo />;
+  } catch {
+    return undefined;
+  }
 }
 
 function PayrollHeader({ title }: { title: string }) {
-  return (
-    <section className="border-b border-zinc-800 pb-5">
-      <h1 className="text-3xl font-medium tracking-tight text-zinc-100">{title}</h1>
-    </section>
-  );
+  return <section className="border-b border-zinc-800 pb-5"><h1 className="text-3xl font-medium tracking-tight text-zinc-100">{title}</h1></section>;
 }
 
-function DaoPayrollDemo() {
-  const { daoPayments, recordPayments, verifyPayments } = usePayrollLedger();
+export function PayrollDemo({ workspace }: { workspace: Workspace }) {
+  const [tokenAddress, setTokenAddress] = useState<string>(PAYROLL_CONTRACTS.demoToken);
+  const selectedToken = isAddress(tokenAddress) ? tokenAddress : PAYROLL_CONTRACTS.demoToken;
+  const scope = useMemo(() => payrollDecryptionScope(selectedToken), [selectedToken]);
+
+  return <DecryptionProvider scope={scope}>{workspace === "dao" ? <DaoPayroll tokenAddress={tokenAddress} onTokenAddressChange={setTokenAddress} /> : <CommunityPayroll />}</DecryptionProvider>;
+}
+
+function DaoPayroll({ tokenAddress, onTokenAddressChange }: { tokenAddress: string; onTokenAddressChange: (address: string) => void }) {
+  const { address, chainId, isConnected } = useAccount();
+  const publicClient = usePublicClient();
+  const { sendWithReceipt, pending, error } = useTx();
   const [entries, setEntries] = useState(() => cloneEntries(DEFAULT_ENTRIES));
-  const [status, setStatus] = useState<PaymentStatus>("editing");
-  const [payment, setPayment] = useState<FrozenPayment | null>(null);
   const [showValidation, setShowValidation] = useState(false);
   const [touched, setTouched] = useState<TouchedFields>({});
-  const [insufficientBalance, setInsufficientBalance] = useState<string | null>(null);
-  const [privateReadSession, setPrivateReadSession] = useState(0);
-  const paymentStarted = useRef(false);
-  const nextEntryId = useRef(DEFAULT_ENTRIES.length + 1);
-  const operationVersion = useRef(0);
-  const operationTimers = useRef<number[]>([]);
+  const [operatorExpiresAt, setOperatorExpiresAt] = useState<number>();
+  const [checkedBalance, setCheckedBalance] = useState<bigint>();
+  const [flowError, setFlowError] = useState<string>();
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const contextRef = useRef({ address, chainId, tokenAddress });
+  const operationRef = useRef(0);
+  contextRef.current = { address, chainId, tokenAddress };
+  const [sending, setSending] = useState(false);
+  const nextEntryId = useRef(2);
+  const selectedToken = isAddress(tokenAddress) ? tokenAddress : undefined;
+  const canReadToken = isConnected && chainId === sepolia.id && Boolean(selectedToken);
+  const { data: tokenSymbol } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "symbol", query: { enabled: canReadToken } });
+  const { data: tokenDecimals } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "decimals", query: { enabled: canReadToken } });
+  const { data: isOperator, refetch: refetchOperator } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "isOperator", args: address ? [address, PAYROLL_CONTRACTS.multisend] : undefined, query: { enabled: canReadToken && Boolean(address) } });
+  const { data: balanceHandle } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "confidentialBalanceOf", args: address ? [address] : undefined, query: { enabled: canReadToken && Boolean(address) } });
+  const token = tokenFromMetadata(selectedToken, tokenSymbol, tokenDecimals);
+  const validation = useMemo(() => token ? validateEntries(entries, token, PAYROLL_CONTRACTS.multisend) : { entries: {} }, [entries, token]);
+  const tokenError = isAddress(tokenAddress) ? undefined : "Enter a valid token address.";
+  const accessMessage = tokenError ?? (!isConnected ? "Connect a wallet before preparing a payroll payment." : chainId !== sepolia.id ? "Switch to Sepolia before preparing a payroll payment." : undefined);
+  const localOperatorIsValid = operatorExpiresAt !== undefined && operatorExpiresAt > Date.now() / 1000;
+  const requiresAuthorization = isOperator !== true && !localOperatorIsValid;
+  const blocked = Boolean(accessMessage) || !token;
 
-  useEffect(() => () => {
-    operationVersion.current += 1;
-    operationTimers.current.forEach((timer) => window.clearTimeout(timer));
-  }, []);
+  useEffect(() => {
+    operationRef.current += 1;
+    setOperatorExpiresAt(undefined);
+    setCheckedBalance(undefined);
+    setFlowError(undefined);
+    setPayments([]);
+    setSending(false);
+  }, [address, chainId, tokenAddress]);
 
-  const validation = useMemo(() => validateEntries(entries, CUSDT, MULTISEND_ADDRESS), [entries]);
-  const locked = status !== "editing";
-  const total = payment?.total ?? validation.total;
+  useEffect(() => {
+    setCheckedBalance(undefined);
+  }, [balanceHandle]);
 
-  const clearOperationTimers = () => {
-    operationTimers.current.forEach((timer) => window.clearTimeout(timer));
-    operationTimers.current = [];
-  };
+  useEffect(() => {
+    let active = true;
+    if (!isConnected || chainId !== sepolia.id || !address || !publicClient) return;
+    void publicClient.getLogs({ address: PAYROLL_CONTRACTS.multisend, fromBlock: DEPLOYMENT_BLOCK, toBlock: "latest" }).then((logs) => {
+      if (!active) return;
+      const sent = logs.flatMap((log) => {
+        const payment = decodePayment(log);
+        return payment && payment.sender.toLowerCase() === address.toLowerCase() ? [payment] : [];
+      });
+      setPayments((current) => [...sent, ...current.filter((payment) => !sent.some((record) => record.id === payment.id))]);
+    });
+    return () => { active = false; };
+  }, [address, chainId, isConnected, publicClient]);
 
-  const scheduleOperation = (version: number, callback: () => void, delay: number) => {
-    const timer = window.setTimeout(() => {
-      operationTimers.current = operationTimers.current.filter((current) => current !== timer);
-      if (operationVersion.current === version) callback();
-    }, delay);
-    operationTimers.current.push(timer);
-  };
-
-  const cancelActivePayment = () => {
-    operationVersion.current += 1;
-    clearOperationTimers();
-    paymentStarted.current = false;
-    setPayment(null);
-    setStatus("editing");
+  const contextMatches = ({ account, chainId: expectedChainId, token }: PaymentContext) => {
+    const current = contextRef.current;
+    return current.address === account && current.chainId === expectedChainId && current.tokenAddress.toLowerCase() === token.toLowerCase();
   };
 
   const updateEntry = (id: string, field: "recipient" | "amount", value: string) => {
-    if (locked) return;
+    if (sending) return;
     setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, [field]: value } : entry));
-    setInsufficientBalance(null);
   };
 
-  const touchField = (id: string, field: "recipient" | "amount") => {
-    setTouched((current) => ({ ...current, [id]: { ...current[id], [field]: true } }));
+  const authorize = async () => {
+    if (blocked || !selectedToken || !address) return;
+    const context = { account: address, chainId: chainId!, token: selectedToken };
+    const until = Math.floor(Date.now() / 1000) + 15 * 60;
+    const result = await sendWithReceipt("operator", { address: selectedToken, abi: confidentialTokenAbi, functionName: "setOperator", args: [PAYROLL_CONTRACTS.multisend, BigInt(until)] });
+    if (result?.receipt && contextMatches(context)) {
+      setOperatorExpiresAt(until);
+      await refetchOperator();
+    }
   };
 
-  const addEntry = () => {
-    if (locked || entries.length >= MAX_ENTRIES) return;
-    const id = `entry-${nextEntryId.current++}`;
-    setEntries((current) => [...current, { id, recipient: "", amount: "" }]);
-    setInsufficientBalance(null);
-  };
-
-  const removeEntry = (id: string) => {
-    if (locked || entries.length <= 1) return;
-    setEntries((current) => current.filter((entry) => entry.id !== id));
-    setInsufficientBalance(null);
-  };
-
-  const sendPayments = () => {
-    if (locked || paymentStarted.current) return;
-    if (validation.total === undefined) {
+  const sendPayments = async () => {
+    if (blocked || requiresAuthorization || !selectedToken || !address || validation.total === undefined || sending) {
       setShowValidation(true);
       return;
     }
+    if (checkedBalance === undefined) {
+      setFlowError("Sign to check the private balance before sending a payment.");
+      return;
+    }
+    if (checkedBalance < validation.total) {
+      setFlowError("The private balance is lower than the requested total.");
+      return;
+    }
 
-    const paymentId = `mock-payment-${Date.now()}`;
-    const frozenPayment = {
-      id: paymentId,
-      entries: entries.map((entry) => ({ ...entry, requested: parseTokenAmount(entry.amount, CUSDT.decimals) })),
-      total: validation.total,
+    const snapshot: FrozenPayment = {
+      account: address,
+      chainId: chainId!,
+      token: selectedToken,
+      recipients: entries.map((entry) => entry.recipient as Address),
+      amounts: entries.map((entry) => parseTokenAmount(entry.amount, token.decimals)),
     };
-    const version = operationVersion.current + 1;
-
-    paymentStarted.current = true;
-    operationVersion.current = version;
-    setPayment(frozenPayment);
+    const operation = operationRef.current + 1;
+    operationRef.current = operation;
+    setSending(true);
     setShowValidation(false);
-    setInsufficientBalance(null);
-    setStatus("checking-balance");
-
-    scheduleOperation(version, () => {
-      if (!hasEnoughBalance(frozenPayment.total, FUNDED_SENDER.balance)) {
-        const amountNeeded = frozenPayment.total - FUNDED_SENDER.balance;
-        paymentStarted.current = false;
-        setPayment(null);
-        setStatus("editing");
-        setInsufficientBalance(`Mock balance is ${formatTokenAmount(FUNDED_SENDER.balance, CUSDT.decimals)} ${CUSDT.symbol}. Need ${formatTokenAmount(amountNeeded, CUSDT.decimals)} more.`);
+    setFlowError(undefined);
+    try {
+      const encrypted = await encryptValues(PAYROLL_CONTRACTS.multisend, snapshot.account, snapshot.amounts);
+      if (!contextMatches(snapshot)) throw new Error("Wallet, network, or token changed. Review the payment again.");
+      const result = await sendWithReceipt("payroll", {
+        address: PAYROLL_CONTRACTS.multisend,
+        abi: payrollMultisendAbi,
+        functionName: "multisend",
+        args: [snapshot.token, snapshot.recipients, encrypted.handles, encrypted.proof],
+      });
+      if (!result) return;
+      if (!result.receipt) {
+        setFlowError(`Transaction status is unknown. Check ${result.hash} before sending again.`);
         return;
       }
-
-      setStatus("approving");
-      scheduleOperation(version, () => {
-        setStatus("sending");
-        scheduleOperation(version, () => {
-          recordPayments(frozenPayment.id, frozenPayment.entries);
-          setStatus("verifying");
-          scheduleOperation(version, () => {
-            verifyPayments(frozenPayment.id);
-            setStatus("complete");
-          }, 700);
-        }, 700);
-      }, 500);
-    }, 600);
-  };
-
-  const startNewPayment = () => {
-    cancelActivePayment();
-    setPrivateReadSession((current) => current + 1);
-    setEntries(cloneEntries(DEFAULT_ENTRIES));
-    setShowValidation(false);
-    setTouched({});
-    setInsufficientBalance(null);
+      if (!contextMatches(snapshot)) return;
+      const records = result.receipt.logs.map((log) => decodePayment(log)).filter((record): record is PaymentRecord => Boolean(record));
+      if (records.length !== snapshot.recipients.length) throw new Error("The receipt did not contain every payment event. Do not resend automatically.");
+      setPayments((current) => [...records, ...current.filter((payment) => !records.some((record) => record.id === payment.id))]);
+      setEntries(cloneEntries(DEFAULT_ENTRIES));
+      setTouched({});
+    } catch (cause) {
+      if (contextMatches(snapshot)) setFlowError(cause instanceof Error ? cause.message : "Could not prepare the payment.");
+    } finally {
+      if (operationRef.current === operation) setSending(false);
+    }
   };
 
   return (
     <div className="pb-24">
       <PayrollHeader title="Payroll" />
-      <SendView
-        entries={entries}
-        validation={validation}
-        showValidation={showValidation}
-        touched={touched}
-        locked={locked}
-        total={total}
-        status={status}
-        insufficientBalance={insufficientBalance}
-        payments={daoPayments}
-        privateReadSession={privateReadSession}
-        onChange={updateEntry}
-        onBlur={touchField}
-        onAdd={addEntry}
-        onRemove={removeEntry}
-        onSend={sendPayments}
-        onNewPayment={startNewPayment}
-      />
-    </div>
-  );
-}
-
-function CommunityPayrollDemo() {
-  const { receiverPayments } = usePayrollLedger();
-
-  return (
-    <div className="pb-24">
-      <PayrollHeader title="My payroll" />
-      <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl text-zinc-100">Received payments</h2>
-            <p className="mt-1 break-all font-mono text-xs text-zinc-400">{DEMO_RECEIVER.address}</p>
-          </div>
-        </div>
-        <PaymentsList payments={receiverPayments} viewerScope={`receive:${DEMO_RECEIVER.address.toLowerCase()}`} received />
-      </section>
-    </div>
-  );
-}
-
-function SendView({ entries, validation, showValidation, touched, locked, total, status, insufficientBalance, payments, privateReadSession, onChange, onBlur, onAdd, onRemove, onSend, onNewPayment }: {
-  entries: PaymentEntry[];
-  validation: Validation;
-  showValidation: boolean;
-  touched: TouchedFields;
-  locked: boolean;
-  total?: bigint;
-  status: PaymentStatus;
-  insufficientBalance: string | null;
-  payments: SentPayment[];
-  privateReadSession: number;
-  onChange: (id: string, field: "recipient" | "amount", value: string) => void;
-  onBlur: (id: string, field: "recipient" | "amount") => void;
-  onAdd: () => void;
-  onRemove: (id: string) => void;
-  onSend: () => void;
-  onNewPayment: () => void;
-}) {
-  const busy = isBusy(status);
-  const message = flowMessage(status);
-
-  return (
-    <>
       <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h2 className="text-xl text-zinc-100">Payment entries</h2>
           <div className="text-right">
             <p className="font-mono text-xs uppercase tracking-widest text-zinc-500">Requested total</p>
-            <p className="mt-1 font-mono text-lg text-zinc-100">{total === undefined ? "Fix entries" : `${formatTokenAmount(total, CUSDT.decimals)} ${CUSDT.symbol}`}</p>
+            <p className="mt-1 font-mono text-lg text-zinc-100">{validation.total === undefined || !token ? "Fix entries" : `${formatTokenAmount(validation.total, token.decimals)} ${token.symbol}`}</p>
           </div>
         </div>
-
-        <div className="mt-6 space-y-3">
-          {entries.map((entry, index) => <PaymentRow key={entry.id} entry={entry} index={index} validation={validation} showValidation={showValidation} touched={touched[entry.id]} locked={locked} canRemove={entries.length > 1} onChange={onChange} onBlur={onBlur} onRemove={onRemove} />)}
-        </div>
-
+        <label className="mt-5 grid gap-1 text-xs text-zinc-400">Payment token address<input value={tokenAddress} onChange={(event) => onTokenAddressChange(event.target.value)} disabled={sending} spellCheck={false} className={inputClass(tokenError)} />{token && <span className="font-mono text-xs text-zinc-500">{token.symbol} · {token.decimals} decimals</span>}</label>
+        <div className="mt-6 space-y-3">{entries.map((entry, index) => <PaymentRow key={entry.id} entry={entry} index={index} validation={validation} token={token} showValidation={showValidation} touched={touched[entry.id]} locked={sending} canRemove={entries.length > 1} onChange={updateEntry} onBlur={(id, field) => setTouched((current) => ({ ...current, [id]: { ...current[id], [field]: true } }))} onRemove={(id) => setEntries((current) => current.length > 1 ? current.filter((entry) => entry.id !== id) : current)} />)}</div>
         {showValidation && validation.form && <p className="mt-3 text-sm text-red-300">{validation.form}</p>}
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" onClick={onAdd} disabled={locked || entries.length >= MAX_ENTRIES} className={secondary}>Add recipient</button>
-          <span className="self-center font-mono text-xs text-zinc-500">{entries.length}/{MAX_ENTRIES} entries</span>
-        </div>
-
+        <div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => setEntries((current) => current.length < MAX_ENTRIES ? [...current, { id: `entry-${nextEntryId.current++}`, recipient: "", amount: "" }] : current)} disabled={sending || entries.length >= MAX_ENTRIES} className={secondary}>Add recipient</button><span className="self-center font-mono text-xs text-zinc-500">{entries.length}/{MAX_ENTRIES} entries</span></div>
         <div aria-live="polite" className="mt-7 border-t border-zinc-800 pt-5">
-          {status === "complete" ? <>
-            <p className="text-sm text-zinc-200">Verified. Sign on a payment to view its details.</p>
-            <button type="button" onClick={onNewPayment} className={`mt-4 ${secondary}`}>New payment</button>
-          </> : <>
-            {message && <p className="mb-3 text-sm text-yellow-100">{message}</p>}
-            {insufficientBalance && <p className="mb-3 text-sm text-yellow-200">{insufficientBalance}</p>}
-            <button type="button" onClick={onSend} disabled={busy} className={action}>{flowLabel(status)}</button>
-          </>}
+          {accessMessage && <p className="mb-3 text-sm text-yellow-200">{accessMessage}</p>}
+          {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
+          {flowError && <p className="mb-3 text-sm text-red-300">{flowError}</p>}
+          {!blocked && selectedToken && balanceHandle && <PrivateBalance handle={balanceHandle} token={token} onValue={setCheckedBalance} />}
+          {requiresAuthorization ? <><p className="mb-3 text-sm text-zinc-300">Authorize the multisend for 15 minutes before sending a payment.</p><button type="button" onClick={authorize} disabled={blocked || pending === "operator"} className={action}>{pending === "operator" ? "Authorizing multisend..." : "Authorize multisend"}</button></> : <button type="button" onClick={sendPayments} disabled={blocked || sending || pending === "payroll"} className={action}>{sending || pending === "payroll" ? "Sending payment..." : "Send payment"}</button>}
         </div>
       </section>
-
-      <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7">
-        <h2 className="text-xl text-zinc-100">Recent sent payments</h2>
-        <PaymentsList payments={payments} viewerScope={`send:${FUNDED_SENDER.address.toLowerCase()}:session:${privateReadSession}`} />
-      </section>
-    </>
-  );
-}
-
-function PaymentRow({ entry, index, validation, showValidation, touched, locked, canRemove, onChange, onBlur, onRemove }: {
-  entry: PaymentEntry;
-  index: number;
-  validation: Validation;
-  showValidation: boolean;
-  touched?: TouchedFields[string];
-  locked: boolean;
-  canRemove: boolean;
-  onChange: (id: string, field: "recipient" | "amount", value: string) => void;
-  onBlur: (id: string, field: "recipient" | "amount") => void;
-  onRemove: (id: string) => void;
-}) {
-  const errors = validation.entries[entry.id];
-  const recipientError = (showValidation || touched?.recipient) ? errors?.recipient : undefined;
-  const amountError = (showValidation || touched?.amount) ? errors?.amount : undefined;
-
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="font-mono text-xs text-zinc-500">Payment {index + 1}</span>
-        <button type="button" onClick={() => onRemove(entry.id)} disabled={locked || !canRemove} className={`text-xs text-zinc-400 hover:text-yellow-300 disabled:cursor-not-allowed disabled:text-zinc-600 ${focus}`}>Remove</button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
-        <label className="grid min-w-0 gap-1 text-xs text-zinc-400">Recipient<input value={entry.recipient} onChange={(event) => onChange(entry.id, "recipient", event.target.value)} onBlur={() => onBlur(entry.id, "recipient")} disabled={locked} spellCheck={false} className={inputClass(recipientError)} aria-describedby={recipientError ? `${entry.id}-recipient-error` : undefined} /></label>
-        <label className="grid min-w-0 gap-1 text-xs text-zinc-400">Amount ({CUSDT.symbol})<input value={entry.amount} onChange={(event) => onChange(entry.id, "amount", event.target.value)} onBlur={() => onBlur(entry.id, "amount")} disabled={locked} inputMode="decimal" className={inputClass(amountError)} aria-describedby={amountError ? `${entry.id}-amount-error` : undefined} /></label>
-      </div>
-      {recipientError && <p id={`${entry.id}-recipient-error`} className="mt-2 text-xs text-red-300">{recipientError}</p>}
-      {amountError && <p id={`${entry.id}-amount-error`} className="mt-2 text-xs text-red-300">{amountError}</p>}
+      <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7"><h2 className="text-xl text-zinc-100">Recent sent payments</h2><PaymentsList payments={payments} token={token} received={false} /></section>
     </div>
   );
 }
 
-function PrivateDetailsGate({ privateRead, onRequestDetails, onConfirmDetails, onCancelDetails }: {
-  privateRead: PrivateRead;
-  onRequestDetails: () => void;
-  onConfirmDetails: () => void;
-  onCancelDetails: () => void;
-}) {
-  if (privateRead.phase === "revealed") return <p className="text-xs text-green-200">Private details shown.</p>;
-  if (privateRead.phase === "decrypting") return <p aria-live="polite" className="text-xs text-yellow-100">Decrypting...</p>;
-  if (privateRead.phase === "awaiting-signature") {
-    return <div className="flex flex-wrap items-center gap-2">
-      <span aria-live="polite" className="text-xs text-yellow-100">Waiting for signature...</span>
-      <button type="button" onClick={onConfirmDetails} className={secondary}>Sign</button>
-      <button type="button" onClick={onCancelDetails} className={secondary}>Cancel</button>
-    </div>;
-  }
-  return <button type="button" onClick={onRequestDetails} className={secondary}>Sign to view details</button>;
+function PrivateBalance({ handle, token, onValue }: { handle: Hex; token?: Token; onValue: (value: bigint) => void }) {
+  const decryption = useDecryption();
+  const { signTypedDataAsync } = useSignTypedData();
+  const version = useSyncExternalStore(decryption.subscribe, decryption.getVersion, decryption.getVersion);
+  const [phase, setPhase] = useState<"locked" | "decrypting" | "error">("locked");
+  const value = decryption.getCachedDecryption(handle, token?.address ?? PAYROLL_CONTRACTS.demoToken);
+
+  useEffect(() => {
+    setPhase("locked");
+  }, [handle, version]);
+
+  useEffect(() => {
+    if (value !== undefined) onValue(value);
+  }, [onValue, value]);
+
+  const decrypt = async () => {
+    if (!token) return;
+    setPhase("decrypting");
+    try {
+      await decryption.userDecrypt([{ handle, contractAddress: token.address }], signTypedDataAsync);
+      setPhase("locked");
+    } catch {
+      setPhase("error");
+    }
+  };
+
+  return <div className="mb-4 flex flex-wrap items-center gap-3"><span className="text-sm text-zinc-300">{value === undefined || !token ? "Private balance locked" : `Private balance: ${formatTokenAmount(value, token.decimals)} ${token.symbol}`}</span>{value === undefined && <button type="button" onClick={decrypt} disabled={!token || phase === "decrypting"} className={secondary}>{phase === "decrypting" ? "Decrypting balance..." : "Sign to check balance"}</button>}{phase === "error" && <span className="text-sm text-red-300">Could not decrypt the balance. Try again.</span>}</div>;
 }
 
-function PaymentsList({ payments, viewerScope, received = false }: {
-  payments: SentPayment[];
-  viewerScope: string;
-  received?: boolean;
-}) {
-  return (
-    <ul className="mt-5 divide-y divide-zinc-800">
-      {payments.map((payment) => <PrivatePaymentRow key={payment.id} payment={payment} viewerScope={viewerScope} received={received} />)}
-    </ul>
-  );
+function CommunityPayroll() {
+  const { address, chainId, isConnected } = useAccount();
+  const publicClient = usePublicClient();
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [historyError, setHistoryError] = useState<string>();
+
+  useEffect(() => {
+    let active = true;
+    if (!isConnected || chainId !== sepolia.id || !address || !publicClient) {
+      setPayments([]);
+      return;
+    }
+    void publicClient.getLogs({ address: PAYROLL_CONTRACTS.multisend, fromBlock: DEPLOYMENT_BLOCK, toBlock: "latest" }).then((logs) => {
+      if (!active) return;
+      const received = logs.flatMap((log) => {
+        const payment = decodePayment(log);
+        return payment && payment.recipient.toLowerCase() === address.toLowerCase() ? [payment] : [];
+      });
+      setPayments(received);
+      setHistoryError(undefined);
+    }).catch(() => {
+      if (active) setHistoryError("Could not load payment history. Try again later.");
+    });
+    return () => { active = false; };
+  }, [address, chainId, isConnected, publicClient]);
+
+  return <div className="pb-24"><PayrollHeader title="My payroll" /><section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7"><h2 className="text-xl text-zinc-100">Received payments</h2>{!isConnected && <p className="mt-3 text-sm text-yellow-200">Connect a wallet to view received payments.</p>}{chainId !== undefined && chainId !== sepolia.id && <p className="mt-3 text-sm text-yellow-200">Switch to Sepolia to view received payments.</p>}{historyError && <p className="mt-3 text-sm text-red-300">{historyError}</p>}<PaymentsList payments={payments} received /></section></div>;
 }
 
-function PrivatePaymentRow({ payment, viewerScope, received }: {
-  payment: SentPayment;
-  viewerScope: string;
-  received: boolean;
-}) {
-  const scope = mockPaymentPrivateReadScope(viewerScope, payment.id);
-  const privateDetails = usePrivateRead(scope);
-
-  return (
-    <li className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1fr)_auto] sm:items-center">
-      {received ? <span className="text-zinc-300">Received payment</span> : <span className="min-w-0 break-all font-mono text-xs text-zinc-300">{payment.recipient}</span>}
-      <div className="grid gap-3">
-        {privateDetails.detailsVisible ? <PrivatePaymentDetails payment={payment} /> : <span className="font-mono text-xs text-zinc-500">Private details locked</span>}
-        <PrivateDetailsGate privateRead={privateDetails.privateRead} onRequestDetails={privateDetails.request} onConfirmDetails={privateDetails.confirm} onCancelDetails={privateDetails.clear} />
-      </div>
-      <time className="text-sm text-zinc-400 sm:text-right">{payment.date}</time>
-    </li>
-  );
+function PaymentRow({ entry, index, validation, token, showValidation, touched, locked, canRemove, onChange, onBlur, onRemove }: { entry: PaymentEntry; index: number; validation: Validation; token?: Token; showValidation: boolean; touched?: TouchedFields[string]; locked: boolean; canRemove: boolean; onChange: (id: string, field: "recipient" | "amount", value: string) => void; onBlur: (id: string, field: "recipient" | "amount") => void; onRemove: (id: string) => void }) {
+  const errors = validation.entries[entry.id];
+  const recipientError = (showValidation || touched?.recipient) ? errors?.recipient : undefined;
+  const amountError = (showValidation || touched?.amount) ? errors?.amount : undefined;
+  return <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3"><div className="mb-2 flex items-center justify-between gap-3"><span className="font-mono text-xs text-zinc-500">Payment {index + 1}</span><button type="button" onClick={() => onRemove(entry.id)} disabled={locked || !canRemove} className={`text-xs text-zinc-400 hover:text-yellow-300 disabled:cursor-not-allowed disabled:text-zinc-600 ${focus}`}>Remove</button></div><div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]"><label className="grid min-w-0 gap-1 text-xs text-zinc-400">Recipient<input value={entry.recipient} onChange={(event) => onChange(entry.id, "recipient", event.target.value)} onBlur={() => onBlur(entry.id, "recipient")} disabled={locked} spellCheck={false} className={inputClass(recipientError)} /></label><label className="grid min-w-0 gap-1 text-xs text-zinc-400">Amount ({token?.symbol ?? "token"})<input value={entry.amount} onChange={(event) => onChange(entry.id, "amount", event.target.value)} onBlur={() => onBlur(entry.id, "amount")} disabled={locked} inputMode="decimal" className={inputClass(amountError)} /></label></div>{recipientError && <p className="mt-2 text-xs text-red-300">{recipientError}</p>}{amountError && <p className="mt-2 text-xs text-red-300">{amountError}</p>}</div>;
 }
 
-function PrivatePaymentDetails({ payment }: { payment: SentPayment }) {
-  if (payment.verification === "pending") {
-    return <span className="grid gap-1 font-mono text-xs text-zinc-300"><span>Requested {formatTokenAmount(payment.requested, CUSDT.decimals)} {CUSDT.symbol}</span><span>Actual {formatTokenAmount(payment.actual ?? 0n, CUSDT.decimals)} {CUSDT.symbol}</span><span>Awaiting verification</span></span>;
-  }
+function PaymentsList({ payments, token, received = false }: { payments: PaymentRecord[]; token?: Token; received?: boolean }) {
+  if (!payments.length) return <p className="mt-5 text-sm text-zinc-500">No payments found.</p>;
+  return <ul className="mt-5 divide-y divide-zinc-800">{payments.map((payment) => <PrivatePaymentRow key={payment.id} payment={payment} token={token} received={received} />)}</ul>;
+}
 
-  return <span className="grid gap-1 font-mono text-xs text-zinc-100"><span>Requested {formatTokenAmount(payment.requested, CUSDT.decimals)} {CUSDT.symbol}</span><span>Actual {formatTokenAmount(payment.actual ?? 0n, CUSDT.decimals)} {CUSDT.symbol}</span><span className={privateResultClass(payment)}>{privateResult(payment)}</span></span>;
+function PrivatePaymentRow({ payment, token, received }: { payment: PaymentRecord; token?: Token; received: boolean }) {
+  const decryption = useDecryption();
+  const { signTypedDataAsync } = useSignTypedData();
+  const { data: historicTokenSymbol } = useReadContract({ address: payment.token, abi: confidentialTokenAbi, functionName: "symbol", query: { enabled: !token } });
+  const { data: historicTokenDecimals } = useReadContract({ address: payment.token, abi: confidentialTokenAbi, functionName: "decimals", query: { enabled: !token } });
+  const displayToken = token ?? tokenFromMetadata(payment.token, historicTokenSymbol, historicTokenDecimals);
+  const version = useSyncExternalStore(decryption.subscribe, decryption.getVersion, decryption.getVersion);
+  const [phase, setPhase] = useState<"locked" | "decrypting" | "error">("locked");
+  const requested = decryption.getCachedDecryption(payment.requestedAmount, PAYROLL_CONTRACTS.multisend);
+  const actual = decryption.getCachedDecryption(payment.actualAmount, PAYROLL_CONTRACTS.multisend);
+  const hasDetails = requested !== undefined && actual !== undefined;
+
+  useEffect(() => { setPhase("locked"); }, [payment.id, version]);
+  const decrypt = async () => {
+    setPhase("decrypting");
+    try {
+      await decryption.userDecrypt([{ handle: payment.requestedAmount, contractAddress: PAYROLL_CONTRACTS.multisend }, { handle: payment.actualAmount, contractAddress: PAYROLL_CONTRACTS.multisend }], signTypedDataAsync);
+      setPhase("locked");
+    } catch {
+      setPhase("error");
+    }
+  };
+  const amount = (value: bigint) => displayToken ? `${formatTokenAmount(value, displayToken.decimals)} ${displayToken.symbol}` : "Private token amount";
+  return <li className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1fr)_auto] sm:items-center">{received ? <span className="text-zinc-300">Received payment</span> : <span className="min-w-0 break-all font-mono text-xs text-zinc-300">{payment.recipient}</span>}<div className="grid gap-3">{hasDetails ? <span className="grid gap-1 font-mono text-xs text-zinc-100"><span>Requested {amount(requested)}</span><span>Actual {amount(actual)}</span><span className={actual === 0n ? "text-yellow-200" : actual === requested ? "text-green-200" : "text-yellow-200"}>{actual === 0n ? "Verified zero" : actual === requested ? "Verified paid" : "Actual amount differs"}</span></span> : <span className="font-mono text-xs text-zinc-500">Private details locked</span>}{phase === "decrypting" ? <span className="text-xs text-yellow-100">Decrypting...</span> : phase === "error" ? <span className="text-xs text-red-300">Could not decrypt this payment. Try again.</span> : !hasDetails && <button type="button" onClick={decrypt} className={secondary}>Sign to view details</button>}</div><a className="font-mono text-xs text-zinc-400 hover:text-yellow-300" href={`https://sepolia.etherscan.io/tx/${payment.transactionHash}`} target="_blank" rel="noreferrer">View transaction</a></li>;
 }
