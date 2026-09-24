@@ -6,7 +6,7 @@ status: accepted
 
 Move the Community and treasury split out of individual features into a shared header switch. Keep feature navigation in the left sidebar. The home page keeps its Community and DAO dashboard choice cards, without a sidebar. One person can use both, so these workspaces do not define roles or grant access. Use short labels and show permission reasons beside restricted controls rather than repeating explanatory paragraphs.
 
-Community starts with a buyback list, then the seller's offer and claim tools. Use "Sell cTOKEN" for the listing action. The DAO dashboard starts with an overview of the current DAO, then its tools to create and manage the buyback. "Create buyback" starts the existing vault's first epoch; it does not deploy or fund a vault. Both areas link to one public buyback report. Vesting has UI-only routes in both workspaces: Community reviews received grants and the DAO reviews or creates grants. The Vesting UI uses local preview data and has no wallet, contract, decryption, transaction, or discovery integration. Payroll, Payment Requests, Token Launchpad, Governance, and Airdrop / Staking remain Soon. The eventual Community view for Payroll should show the connected wallet's payments across DAOs. This does not implement private data discovery.
+Community starts with a buyback list, then the seller's offer and claim tools. Use "Sell cTOKEN" for the listing action. The DAO dashboard starts with an overview of the current DAO, then its tools to create and manage the buyback. "Create buyback" starts the existing vault's first epoch; it does not deploy or fund a vault. Both areas link to one public buyback report. Vesting has UI-only routes in both workspaces: Community reviews received grants and the DAO reviews or creates grants. The Vesting UI uses local preview data and has no wallet, contract, decryption, transaction, or discovery integration. Payroll has mock routes in both workspaces: the DAO simulates sender actions and the Community simulates the demo receiver's private payment reads. It uses an in-memory ledger, not a wallet, RPC, real signature, transaction, or persistent salary data. Payment Requests, Token Launchpad, Governance, and Airdrop / Staking remain Soon. The eventual Community view for Payroll should show the connected wallet's payments across DAOs. This does not implement private data discovery.
 
 ## Scope and access
 
@@ -26,9 +26,11 @@ Mount the existing feature-scoped `DecryptionProvider` on each private buyback p
 - `/buybacks/report`: shared public report. A validated `workspace=community|dao` parameter selects navigation and the return link only.
 - `/community/vesting`: received vesting grants, UI preview.
 - `/dao/vesting`: create and manage vesting grants, UI preview.
-- Under both `/community` and `/dao`: `/payroll`, `/payment-requests`, `/token-launchpad`, `/governance`, and `/airdrop-staking` are Soon pages without private reads or actions.
+- `/community/payroll`: mock community payroll receiver flow.
+- `/dao/payroll`: mock DAO payroll sender flow.
+- Under both `/community` and `/dao`: `/payment-requests`, `/token-launchpad`, `/governance`, and `/airdrop-staking` are Soon pages without private reads or actions.
 
-Vesting appears as a normal sidebar link and DAO overview item. The remaining Soon features appear as non-clickable labels. Their placeholder URLs remain available for direct visits.
+Vesting and Payroll appear as normal sidebar links and DAO overview items. The remaining Soon features appear as non-clickable labels. Their placeholder URLs remain available for direct visits.
 
 Redirect `/community` and the old `/buybacks` entry to `/community/buybacks`. Normal links give each screen a reloadable URL and preserve browser back navigation.
 

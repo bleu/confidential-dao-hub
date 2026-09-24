@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   buybackHref,
+  isPayrollDemoPath,
   isWorkspaceLinkActive,
+  payrollHref,
   reportHref,
   reportWorkspace,
   routes,
@@ -36,7 +38,17 @@ test("public report accepts only a known scalar workspace", () => {
   assert.equal(reportHref("community"), "/buybacks/report?workspace=community");
 });
 
-test("each workspace has its own feature links and Soon destinations", () => {
+test("payroll routes keep their workspace and counterpart", () => {
+  assert.equal(payrollHref("dao"), routes.daoPayroll);
+  assert.equal(payrollHref("community"), routes.communityPayroll);
+  assert.equal(workspaceForPath(routes.daoPayroll), "dao");
+  assert.equal(workspaceForPath(routes.communityPayroll), "community");
+  assert.equal(isPayrollDemoPath(routes.daoPayroll), true);
+  assert.equal(isPayrollDemoPath(routes.communityPayroll), true);
+  assert.equal(isPayrollDemoPath("/dao/payroll/history"), false);
+});
+
+test("each workspace has its own feature links and Payroll route", () => {
   const community = workspaceLinks("community");
   const dao = workspaceLinks("dao");
   const restoredLabels = ["Payment Requests", "Token Launchpad", "Governance", "Airdrop / Staking"];
@@ -48,10 +60,14 @@ test("each workspace has its own feature links and Soon destinations", () => {
     assert.equal(workspaceForPath(vestingPath), workspace);
     assert.deepEqual(links.filter((link) => isWorkspaceLinkActive(vestingPath, link.href)).map((link) => link.href), [vestingPath]);
 
-    const soonPaths = ["payroll", "payment-requests", "token-launchpad", "governance", "airdrop-staking"]
+    const payrollPath = payrollHref(workspace);
+    assert.equal(links.find(({ href }) => href === payrollPath)?.soon, false);
+
+    const soonPaths = ["payment-requests", "token-launchpad", "governance", "airdrop-staking"]
       .map((feature) => `/${workspace}/${feature}`);
     assert.deepEqual(links.filter(({ soon }) => soon).map(({ href }) => href), soonPaths);
-    for (const href of soonPaths) {
+    assert.equal(links.some((link) => "demo" in link), false);
+    for (const href of [...soonPaths, payrollHref(workspace)]) {
       assert.equal(workspaceForPath(href), workspace);
       assert.deepEqual(links.filter((link) => isWorkspaceLinkActive(href, link.href)).map((link) => link.href), [href]);
       assert.equal(isWorkspaceLinkActive(`${href}-other`, href), false);

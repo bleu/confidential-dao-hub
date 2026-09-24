@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   CURRENT_DAO,
   isWorkspaceLinkActive,
+  payrollHref,
   routes,
   workspaceForPath,
   workspaceLinks,
@@ -22,7 +23,8 @@ function useCurrentWorkspace() {
 }
 
 export function WorkspaceSwitcher() {
-  const { workspace } = useCurrentWorkspace();
+  const { pathname, workspace } = useCurrentWorkspace();
+  const preservePayroll = pathname === routes.daoPayroll || pathname === routes.communityPayroll;
 
   return (
     <nav aria-label="Workspaces" className="flex flex-wrap gap-2">
@@ -32,7 +34,7 @@ export function WorkspaceSwitcher() {
       ] as const).map(({ id, href, label }) => (
         <Link
           key={id}
-          href={href}
+          href={preservePayroll ? payrollHref(id) : href}
           aria-current={workspace === id ? "true" : undefined}
           className={`rounded-md px-3 py-3 text-sm ${focus} ${workspace === id ? "bg-yellow-300 text-zinc-950" : "bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800"}`}
         >

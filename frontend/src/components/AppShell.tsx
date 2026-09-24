@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { ConnectButton } from "@/components/ConnectButton";
+import { WalletConnection } from "@/components/WalletConnection";
 import { WorkspaceNav, WorkspaceSwitcher } from "@/components/WorkspaceNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Suspense fallback={null}>
             <WorkspaceSwitcher />
           </Suspense>
-          <ConnectButton />
+          <WalletConnection />
         </div>
       </header>
       <div className="grid overflow-hidden rounded-xl border border-zinc-800 md:grid-cols-[195px_minmax(0,1fr)]">
