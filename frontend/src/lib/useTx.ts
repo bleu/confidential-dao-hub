@@ -24,6 +24,7 @@ export function useTx() {
     async (
       label: string,
       params: WriteParams | (() => Promise<WriteParams>),
+      onSubmitted?: (hash: Hex) => void,
     ) => {
       setPending(label);
       setError(null);
@@ -32,16 +33,20 @@ export function useTx() {
       try {
         const resolved = typeof params === "function" ? await params() : params;
         hash = await writeContractAsync(resolved);
+        onSubmitted?.(hash);
         const receipt = await publicClient!.waitForTransactionReceipt({ hash });
         receiptObserved = true;
-        if (receipt.status !== "success")
-          throw new Error("Transaction reverted.");
+        if (receipt.status !== "success") throw new Error("Transaction reverted.");
         await queryClient.invalidateQueries();
-        return { hash, receipt };
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        setError(hash && !receiptObserved ? `Transaction status is unknown. Check ${hash} before sending again.` : message.split("\n")[0].slice(0, 200));
-        return hash && !receiptObserved ? { hash } : undefined;
+        return { ok: true as const, receipt };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const conciseMessage = message.split("\n")[0].slice(0, 200);
+        const displayMessage = hash && !receiptObserved
+          ? `Transaction status is unknown. Check ${hash} before sending again.`
+          : conciseMessage;
+        setError(displayMessage);
+        return { ok: false as const, message: displayMessage };
       } finally {
         setPending(null);
       }
@@ -53,7 +58,7 @@ export function useTx() {
     async (
       label: string,
       params: WriteParams | (() => Promise<WriteParams>),
-    ) => Boolean((await sendWithReceipt(label, params))?.receipt),
+    ) => (await sendWithReceipt(label, params)).ok,
     [sendWithReceipt],
   );
 

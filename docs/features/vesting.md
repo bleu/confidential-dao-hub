@@ -1,6 +1,16 @@
 # Vesting
 
-The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. `ConfidentialVesting` is deployed on Sepolia. The DAO and Community routes discover the connected wallet's grant records, show public details, and decrypt private values only for the grant treasury or recipient. Creation, claim, revocation, and refund actions remain pending. This is a PoC, not audited or production-ready.
+The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. `ConfidentialVesting` is deployed on Sepolia. The DAO route creates individual configured-token grants, and the DAO and Community routes discover the connected wallet's grant records, show public details, and decrypt private values only for the grant treasury or recipient. Claim, revocation, and refund actions remain pending. This is a PoC, not audited or production-ready.
+
+## DAO grant creation interface
+
+The DAO route provides one individual-grant form. It accepts a recipient, a configured token, allocation, start/end dates, an optional cliff, and revocability. The connected wallet is shown as the fixed treasury and refund destination. The review step shows the fixed recipient, token, schedule, and revocability before the wallet transaction. Terms cannot be edited, reassigned, or topped up after creation.
+
+The current configured token list contains Sepolia cTOKEN with six decimals. This UI list is a selection limit only. The contract can still hold and expose grants created directly with other compatible tokens.
+
+The browser checks the public schedule rules before encryption. A backdated start is valid when the end is still in the future. The review explains immediately accrued vesting and whether a future cliff still blocks access. The transaction execution time, rather than the browser preview, controls the final result.
+
+The DAO first authorizes the vesting contract as the selected token's operator. It then encrypts the requested allocation for the vesting contract and connected treasury, submits `createGrant`, reads the new grant from `GrantCreated`, and decrypts the recorded allocation. The UI shows transaction pending, mined awaiting private verification, funded, zero-funded, and retryable private-check error states separately. A failed private check does not mean zero funding and can be retried without another transaction. A confirmed zero-funded record is not an active entitlement; create a new grant to retry funding. Decryption results and pending operations are cleared or ignored when the wallet, chain, or vesting decryption scope changes.
 
 ## Contract and custody
 

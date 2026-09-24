@@ -7,6 +7,7 @@ import { type SignTypedDataFn } from "@/lib/decryption-client";
 import { DecryptionProvider, useDecryption } from "@/lib/decryption-context";
 
 import { VESTING_DECRYPTION_SCOPE } from "./contracts";
+import { VestingCreateGrantPanel } from "./CreateGrantPanel";
 import {
   estimateGrant,
   fundingState,
@@ -60,12 +61,15 @@ function VestingContent({
       </header>
 
       {grantId === undefined ? (
-        <VestingGrantList
-          workspace={workspace}
-          state={listState}
-          grants={roleGrants}
-          hrefFor={(id) => `/${workspace}/vesting/${id}`}
-        />
+        <>
+          {workspace === "dao" && <VestingCreateGrantPanel />}
+          <VestingGrantList
+            workspace={workspace}
+            state={listState}
+            grants={roleGrants}
+            hrefFor={(id) => `/${workspace}/vesting/${id}`}
+          />
+        </>
       ) : grant ? (
         <GrantDetail
           key={`${grant.id}:${address ?? "disconnected"}:${chainId ?? "unknown"}`}

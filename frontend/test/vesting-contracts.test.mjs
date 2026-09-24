@@ -6,6 +6,9 @@ import {
   VESTING_CONTRACT,
   VESTING_DECRYPTION_SCOPE,
   VESTING_DEPLOYMENT_BLOCK,
+  VESTING_TOKENS,
+  tokenAbi,
+  vestingAbi,
 } from "../src/features/vesting/contracts.ts";
 import { createDecryptionClient } from "../src/lib/decryption-client.ts";
 
@@ -27,6 +30,19 @@ test("limits vesting decryption to the deployed vesting contract", () => {
     chainId: 11155111,
     contractAddresses: [VESTING_CONTRACT],
   });
+});
+
+test("configures cTOKEN creation and its required write surfaces", () => {
+  assert.deepEqual(VESTING_TOKENS, [
+    {
+      address: "0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f",
+      symbol: "cTOKEN",
+      decimals: 6,
+    },
+  ]);
+  assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "createGrant"), true);
+  assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "isOperator"), true);
+  assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "setOperator"), true);
 });
 
 test("a reset vesting scope rejects a stale private read", async () => {

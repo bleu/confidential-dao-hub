@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem";
+import { isAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem";
 
 export type GrantRole = "created" | "received";
 
@@ -160,4 +160,117 @@ export function fundingState(
 ): FundingState {
   if (allocation !== undefined) return allocation === 0n ? "zero-funded" : "funded";
   return decryption === "unavailable" ? "unavailable" : "unverified";
+}
+
+const MAX_UINT48 = (1n << 48n) - 1n;
+const MAX_UINT64 = (1n << 64n) - 1n;
+
+export type CreateGrantInput = {
+  recipient: string;
+  token: Address;
+  vestingContract: Address;
+  allocation: string;
+  tokenDecimals: number;
+  start: bigint;
+  end: bigint;
+  cliff: bigint | null;
+  revocable: boolean;
+};
+
+export type CreateGrantRequest = {
+  recipient: Address;
+  token: Address;
+  allocation: bigint;
+  start: bigint;
+  end: bigint;
+  cliff: bigint;
+  revocable: boolean;
+};
+
+export type CreateGrantPreview = {
+  accrued: bigint;
+  vested: bigint;
+  available: bigint;
+  cliffPassed: boolean;
+};
+
+export type CreateGrantErrors = Partial<
+  Record<"recipient" | "allocation" | "start" | "end" | "cliff", string>
+>;
+
+export type CreateGrantPreparation =
+  | { request: CreateGrantRequest; preview: CreateGrantPreview }
+  | { errors: CreateGrantErrors };
+
+export function prepareCreateGrant(
+  input: CreateGrantInput,
+  nowSeconds: bigint,
+): CreateGrantPreparation {
+  const errors: CreateGrantErrors = {};
+  const recipient = parseRecipient(input.recipient);
+  const allocation = parseAllocation(input.allocation, input.tokenDecimals);
+
+  if (!recipient || recipient === zeroAddress || recipient.toLowerCase() === input.vestingContract.toLowerCase()) {
+    errors.recipient = "Enter a recipient wallet.";
+  }
+  if (allocation === undefined || allocation === 0n) {
+    errors.allocation = "Enter a positive allocation.";
+  } else if (allocation > MAX_UINT64) {
+    errors.allocation = "Allocation exceeds the supported limit.";
+  }
+  if (!isUint48(input.start)) errors.start = "Start must be a valid date.";
+  if (!isUint48(input.end) || input.end <= input.start || input.end <= nowSeconds) {
+    errors.end = "End must follow start and be in the future.";
+  }
+  if (
+    input.cliff !== null &&
+    (!isUint48(input.cliff) || input.cliff < input.start || input.cliff > input.end)
+  ) {
+    errors.cliff = "Cliff must fall between start and end.";
+  }
+  if (Object.keys(errors).length > 0) return { errors };
+
+  const request: CreateGrantRequest = {
+    recipient: recipient!,
+    token: input.token,
+    allocation: allocation!,
+    start: input.start,
+    end: input.end,
+    cliff: input.cliff ?? 0n,
+    revocable: input.revocable,
+  };
+  return { request, preview: previewCreateGrant(request, nowSeconds) };
+}
+
+export function previewCreateGrant(
+  request: CreateGrantRequest,
+  nowSeconds: bigint,
+): CreateGrantPreview {
+  const accrued =
+    nowSeconds <= request.start
+      ? 0n
+      : nowSeconds >= request.end
+        ? request.allocation
+        : (request.allocation * (nowSeconds - request.start)) /
+          (request.end - request.start);
+  const cliffPassed = request.cliff === 0n || nowSeconds >= request.cliff;
+  const vested = cliffPassed ? accrued : 0n;
+
+  return { accrued, vested, available: vested, cliffPassed };
+}
+
+function parseRecipient(value: string): Address | undefined {
+  return isAddress(value, { strict: false }) ? (value as Address) : undefined;
+}
+
+function parseAllocation(value: string, decimals: number): bigint | undefined {
+  try {
+    return parseUnits(value, decimals);
+  } catch {
+    return undefined;
+  }
+}
+
+function isUint48(value: bigint): boolean {
+  return value >= 0n && value <= MAX_UINT48;
 }
