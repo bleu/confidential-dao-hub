@@ -116,6 +116,14 @@ test("Sepolia payroll does not show token decimal metadata", async ({ page }) =>
   await expect(page.getByText("cUSDT · 6 decimals")).not.toBeVisible();
 });
 
+test("payroll groups payment rows under shared payment and amount headings", async ({ page }) => {
+  await page.goto("/dao/payroll");
+
+  await expect(page.getByText("Payments", { exact: true })).toBeVisible();
+  await expect(page.getByText("Amounts", { exact: true })).toBeVisible();
+  await expect(page.getByText("Payment 1", { exact: true })).not.toBeVisible();
+});
+
 test("Sepolia wallet can authorize the multisend after token reads load", async ({ page }) => {
   await installWallet(page, "0xaa36a7");
   await installPayrollRpc(page);
