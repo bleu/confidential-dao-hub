@@ -1,6 +1,6 @@
 # Confidential Ops Hub
 
-A PoC for confidential DAO treasury operations on Zama FHEVM. Buybacks is implemented; the other operations are future features displayed as Soon. Read the root README for setup and repository navigation.
+A PoC for confidential DAO treasury operations on Zama FHEVM. Buybacks is implemented. Vesting has UI-only DAO and Community routes backed by preview data; wallet, contract, decryption, indexer, and transaction integration remain pending. The other operations are future features displayed as Soon. Read the root README for setup and repository navigation.
 
 ## Architecture
 

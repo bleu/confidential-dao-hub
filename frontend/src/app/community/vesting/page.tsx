@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { Vesting } from "@/features/vesting/Vesting";
 
 export default function CommunityVestingPage() {
-  return <ComingSoon title="My vesting" />;
+  return <Vesting workspace="community" />;
 }
