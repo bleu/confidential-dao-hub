@@ -31,10 +31,6 @@ export function Vesting({ workspace }: { workspace: VestingWorkspace }) {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">{workspace === "dao" ? "Create grants and review the grants funded by this treasury." : "Review grants that name this wallet as their recipient."}</p>
       </header>
 
-      <aside className="rounded-lg border border-yellow-900 bg-yellow-950/30 p-4 text-sm leading-6 text-yellow-100">
-        Preview data only. Wallet, contract, private reads, and actions are not connected yet.
-      </aside>
-
       {workspace === "dao" ? (
         <>
           <DaoTabs selected={daoTab} onChange={setDaoTab} />
@@ -167,13 +163,13 @@ function GrantDetail({ workspace, grant }: { workspace: VestingWorkspace; grant:
     ["Cliff", grant.cliff ?? "None"],
     ["Revocability", grant.revocable ? "Revocable" : "Not revocable"],
   ];
-  const accounting = [
-    ["Allocation", grant.privateAccounting.allocation],
-    ["Vested", grant.privateAccounting.vested],
-    ["Available", grant.privateAccounting.available],
-    ["Claimed", grant.privateAccounting.claimed],
-    ["Unvested", grant.privateAccounting.unvested],
-    ...(grant.privateAccounting.outstandingRefund ? [["Outstanding refund", grant.privateAccounting.outstandingRefund]] : []),
+  const accountingLabels = [
+    "Allocation",
+    "Vested",
+    "Available",
+    "Claimed",
+    "Unvested",
+    ...(grant.privateAccounting.outstandingRefund ? ["Outstanding refund"] : []),
   ];
 
   return (
@@ -196,13 +192,13 @@ function GrantDetail({ workspace, grant }: { workspace: VestingWorkspace; grant:
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Private accounting</p>
-            <h2 className="mt-2 text-xl text-zinc-100">Preview values</h2>
+            <h2 className="mt-2 text-xl text-zinc-100">Encrypted values</h2>
           </div>
-          <span className="rounded border border-zinc-700 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-zinc-400">Not decrypted</span>
+          <button type="button" disabled className={disabledButton}>Decrypt private values</button>
         </div>
-        <p className="mt-3 text-sm leading-6 text-zinc-400">These values show the planned layout only. Live private values require an authorized wallet and contract connection.</p>
+        <p className="mt-3 text-sm leading-6 text-zinc-400">Private reads are not connected yet.</p>
         <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-          {accounting.map(([label, value]) => <Fact key={label} label={label} value={value} />)}
+          {accountingLabels.map((label) => <Fact key={label} label={label} value="Encrypted" />)}
         </dl>
       </section>
 
