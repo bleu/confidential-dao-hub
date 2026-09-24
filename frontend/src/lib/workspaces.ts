@@ -1,13 +1,23 @@
 export type Workspace = "community" | "dao";
 
+type WorkspaceLink = {
+  href: string;
+  label: string;
+  soon: boolean;
+  description?: string;
+  action?: string;
+};
+
 export const CURRENT_DAO = { name: "cTOKEN DAO", network: "Sepolia" } as const;
 
 export const routes = {
   home: "/",
   community: "/community/buybacks",
   sell: "/community/buybacks/ctoken",
+  communityVesting: "/community/vesting",
   dao: "/dao",
   treasury: "/dao/buybacks",
+  daoVesting: "/dao/vesting",
   report: "/buybacks/report",
   daoPayroll: "/dao/payroll",
   communityPayroll: "/community/payroll",
@@ -40,12 +50,27 @@ export function isPayrollDemoPath(pathname: string) {
   return pathname === routes.daoPayroll || pathname === routes.communityPayroll;
 }
 
-export function workspaceLinks(workspace: Workspace) {
+export function workspaceLinks(workspace: Workspace): WorkspaceLink[] {
   return [
     ...(workspace === "dao" ? [{ href: routes.dao, label: "Overview", soon: false }] : []),
-    { href: workspace === "dao" ? routes.treasury : routes.community, label: "Buybacks", soon: false },
-    { href: `/${workspace}/vesting`, label: workspace === "community" ? "My vesting" : "Vesting", soon: true },
-    { href: payrollHref(workspace), label: workspace === "community" ? "My payroll" : "Payroll", soon: false },
+    {
+      href: workspace === "dao" ? routes.treasury : routes.community,
+      label: "Buybacks",
+      soon: false,
+      ...(workspace === "dao" ? { description: "cTOKEN / Create and manage buybacks", action: "Manage buyback" } : {}),
+    },
+    {
+      href: workspace === "dao" ? routes.daoVesting : routes.communityVesting,
+      label: workspace === "community" ? "My vesting" : "Vesting",
+      soon: false,
+      ...(workspace === "dao" ? { description: "Create and manage token grants", action: "Manage vesting" } : {}),
+    },
+    {
+      href: payrollHref(workspace),
+      label: workspace === "community" ? "My payroll" : "Payroll",
+      soon: false,
+      ...(workspace === "dao" ? { description: "Mock sender flow with private payment details", action: "Open payroll" } : {}),
+    },
     { href: `/${workspace}/payment-requests`, label: "Payment Requests", soon: true },
     { href: `/${workspace}/token-launchpad`, label: "Token Launchpad", soon: true },
     { href: `/${workspace}/governance`, label: "Governance", soon: true },

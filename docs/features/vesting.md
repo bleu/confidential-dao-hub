@@ -1,6 +1,6 @@
 # Vesting
 
-The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. Sepolia deployment, event indexing, and frontend work remain pending. The app stays **Soon**. This is a PoC, not audited or production-ready.
+The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. The DAO and Community routes now provide a UI-only preview with local display data. Sepolia deployment, event indexing, wallet integration, private reads, and transaction actions remain pending. This is a PoC, not audited or production-ready.
 
 ## Contract and custody
 
@@ -93,7 +93,7 @@ The deployment configuration is `contracts/scripts/vesting/deployment.ts`. It us
 
 ## Later Sepolia deployment
 
-No live deployment was made for this contract stage. Vesting remains Soon in the app. An operator must explicitly deploy and verify it in the separate deployment task.
+No live deployment was made for this contract stage. The app has UI-only Vesting routes backed by preview data; they do not yet use this deployment path. An operator must explicitly deploy and verify the contract in the separate deployment task.
 
 From `contracts/`, set `PRIVATE_KEY`, `RPC_URL`, `ETHERSCAN_API_KEY`, and the shared `EXPECTED_DEPLOYER_ADDRESS` locally. Do not commit or print the private key. Start with the preflight:
 

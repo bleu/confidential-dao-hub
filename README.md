@@ -14,13 +14,13 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | [Payroll](docs/features/payroll.md) | Demo frontend in both workspaces | Live integration pending | [ADR-0003](docs/adr/0003-payroll.md) |
 | Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
 | Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
-| [Vesting](docs/features/vesting.md) | Soon | Contracts implemented | [ADR-0006](docs/adr/0006-vesting.md) |
+| [Vesting](docs/features/vesting.md) | UI preview in both workspaces | UI implemented | [ADR-0006](docs/adr/0006-vesting.md) |
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage offers Community and DAO dashboard workspaces. The header switches between them; the left menu lists their features. Community lists buybacks and opens the seller's offer and claim tools. The DAO dashboard opens the current DAO's tools to create and manage buybacks. Both link to one public buyback report. All pages are public; wallet permissions control actions and private decryption. See [ADR-0010](docs/adr/0010-community-dao-workspaces.md) for the selected layout and access boundaries.
+The homepage offers Community and DAO dashboard workspaces. The header switches between them; the left menu lists their features. Community lists buybacks and opens the seller's offer and claim tools, plus a UI-only view of received vesting grants. The DAO dashboard opens the current DAO's tools to create and manage buybacks, plus a UI-only vesting grant view. Both link to one public buyback report. All pages are public; wallet permissions control actions and private decryption. See [ADR-0010](docs/adr/0010-community-dao-workspaces.md) for the selected layout and access boundaries.
 
-Payroll has a mock frontend demo at `/dao/payroll` and `/community/payroll`. The DAO screen simulates a sender flow, and the Community screen shows only the demo receiver's own payments after mock signing. It has no wallet, RPC, signature, transaction, or saved salary data. The caller-funded confidential multisend contract, local tests, and source-verified Sepolia deployment remain separate from this demo; live payment checks and frontend integration are pending. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend work remain pending. The other future operations have Soon pages in both workspaces, and their ADRs remain proposed.
+Payroll has a mock frontend demo at `/dao/payroll` and `/community/payroll`. The DAO screen simulates a sender flow, and the Community screen shows only the demo receiver's own payments after mock signing. It has no wallet, RPC, signature, transaction, or saved salary data. The caller-funded confidential multisend contract, local tests, and source-verified Sepolia deployment remain separate from this demo; live payment checks and frontend integration are pending. Vesting has normal DAO and Community UI routes backed by preview data only. The Vesting routes do not yet read a wallet, discover grants, decrypt values, or call the contract. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend integration remain pending. The other future operations have Soon pages in both workspaces, and their ADRs remain proposed.
 
 ## Architecture
 
@@ -101,8 +101,8 @@ Visit `http://localhost:3000` to choose a workspace. No wallet is needed to brow
 | `/buybacks/report` | Shared public buyback report |
 | `/dao/payroll` | Mock DAO payroll sender demo |
 | `/community/payroll` | Mock community payroll receiver demo |
-| `/community/vesting` | Wallet activity, Soon |
-| `/dao/vesting` | DAO operations, Soon |
+| `/community/vesting` | Received vesting grants, UI preview |
+| `/dao/vesting` | Create and manage vesting grants, UI preview |
 | `/{community,dao}/payment-requests` | Payment Requests, Soon |
 | `/{community,dao}/token-launchpad` | Token Launchpad, Soon |
 | `/{community,dao}/governance` | Governance, Soon |
@@ -128,7 +128,7 @@ Seeding is a separate treasury action for the default mock payment token only. I
 
 ## Feature deployment
 
-Buybacks, payroll, and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia, but its available frontend is a mock demo only; live payment integration remains pending. Vesting is not deployed and remains Soon in the app.
+Buybacks, payroll, and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia, but its available frontend is a mock demo only; live payment integration remains pending. Vesting has UI-only routes but is not deployed or integrated with a live contract.
 
 Buyback seeding and private state verification remain feature-only operations. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only, with the same guarded deployment flow. The [buybacks guide](docs/features/buybacks.md), [payroll guide](docs/features/payroll.md#sepolia-deployment), and [vesting guide](docs/features/vesting.md#later-sepolia-deployment) give feature-specific steps.
 

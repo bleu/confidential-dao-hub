@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { Vesting } from "@/features/vesting/Vesting";
 
 export default function DaoVestingPage() {
-  return <ComingSoon title="Vesting" />;
+  return <Vesting workspace="dao" />;
 }
