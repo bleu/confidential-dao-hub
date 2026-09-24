@@ -9,6 +9,8 @@ export const routes = {
   dao: "/dao",
   treasury: "/dao/buybacks",
   report: "/buybacks/report",
+  daoPayroll: "/dao/payroll",
+  communityPayroll: "/community/payroll",
 } as const;
 
 export function reportWorkspace(value: unknown): Workspace {
@@ -30,12 +32,20 @@ export function buybackHref(workspace: Workspace) {
   return workspace === "dao" ? routes.treasury : routes.sell;
 }
 
+export function payrollHref(workspace: Workspace) {
+  return workspace === "dao" ? routes.daoPayroll : routes.communityPayroll;
+}
+
+export function isPayrollDemoPath(pathname: string) {
+  return pathname === routes.daoPayroll || pathname === routes.communityPayroll;
+}
+
 export function workspaceLinks(workspace: Workspace) {
   return [
     ...(workspace === "dao" ? [{ href: routes.dao, label: "Overview", soon: false }] : []),
     { href: workspace === "dao" ? routes.treasury : routes.community, label: "Buybacks", soon: false },
     { href: `/${workspace}/vesting`, label: workspace === "community" ? "My vesting" : "Vesting", soon: true },
-    { href: `/${workspace}/payroll`, label: workspace === "community" ? "My payroll" : "Payroll", soon: true },
+    { href: payrollHref(workspace), label: workspace === "community" ? "My payroll" : "Payroll", soon: false },
     { href: `/${workspace}/payment-requests`, label: "Payment Requests", soon: true },
     { href: `/${workspace}/token-launchpad`, label: "Token Launchpad", soon: true },
     { href: `/${workspace}/governance`, label: "Governance", soon: true },

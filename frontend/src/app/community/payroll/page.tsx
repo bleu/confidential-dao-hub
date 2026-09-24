@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { PayrollDemo } from "@/features/payroll/PayrollDemo";
 
 export default function CommunityPayrollPage() {
-  return <ComingSoon title="My payroll" />;
+  return <PayrollDemo workspace="community" />;
 }

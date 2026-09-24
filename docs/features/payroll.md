@@ -2,7 +2,7 @@
 
 Payroll uses a permissionless multisend to pay several recipients with one confidential token. Each call spends the caller's funds. There is no administrator, employee roster, saved salary, advance deposit, or managed payroll balance. See [ADR 0003](../adr/0003-payroll.md) for the design decision.
 
-Payroll is deployed on Sepolia with verified source code. Live payment checks and frontend integration are still pending, so payroll remains Soon in the app. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making it available.
+Payroll has a frontend demo at `/dao/payroll` and `/community/payroll`. It uses fictional cUSDT data and an in-memory mock ledger only. It simulates signing, balance checks, token permission, payment submission, verification, and private reads; it does not connect a wallet, RPC, real signature, transaction, or persistent salary storage. Each DAO payment row can show its mock details after its own mock signing. The Community view can show only the fixed demo receiver's payment rows after signing each row. A workspace switch or the DAO new-payment reset clears private view state and invalidates pending mock reads, while the mock payment history remains available. The deployed contract and its live payment checks remain separate from the demo. Live frontend integration is pending, and payroll is not live. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making payroll live.
 
 ## Contract interface
 

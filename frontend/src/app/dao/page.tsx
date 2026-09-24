@@ -21,9 +21,9 @@ export default function DaoPage() {
           <Link key={href} href={href} className="flex items-center justify-between gap-4 rounded py-6 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-yellow-400">
             <div>
               <h2 className="text-lg">{label}</h2>
-              <p className="mt-1 text-xs text-zinc-500">cTOKEN / Create and manage buybacks</p>
+              <p className="mt-1 text-xs text-zinc-500">{label === "Payroll" ? "Mock sender flow with private payment details" : "cTOKEN / Create and manage buybacks"}</p>
             </div>
-            <span className="text-xs text-yellow-300">Manage buyback</span>
+            <span className="text-xs text-yellow-300">{label === "Payroll" ? "Open payroll" : "Manage buyback"}</span>
           </Link>
         ))}
       </div>

@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { PayrollDemo } from "@/features/payroll/PayrollDemo";
 
 export default function DaoPayrollPage() {
-  return <ComingSoon title="Payroll" />;
+  return <PayrollDemo workspace="dao" />;
 }
