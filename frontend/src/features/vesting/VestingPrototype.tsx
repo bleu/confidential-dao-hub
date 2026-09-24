@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { shortAddress, formatTimestamp } from "@/lib/format";
@@ -24,6 +24,7 @@ import {
 
 type SimulatedWallet = "treasury" | "recipient" | "other";
 type ContextField = "wallet" | "chain" | "scope";
+type VariantATab = "ongoing" | "create";
 
 type PrototypeState = {
   selectedGrantId: string;
@@ -287,7 +288,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-xs text-zinc-500">{label}</dt><dd className="mt-1 font-mono text-xs text-zinc-200">{value}</dd></div>;
 }
 
-function CreationPanel({ state, dispatch }: { state: PrototypeState; dispatch: React.Dispatch<Action> }) {
+function CreationPanel({ state, dispatch, onBack }: { state: PrototypeState; dispatch: React.Dispatch<Action>; onBack: () => void }) {
   const [draft, setDraft] = useState({ recipient: "0x0a731a8900000000000000000000000000008412", allocation: "12,000", start: "2026-10-01", end: "2030-10-01", cliff: "2027-10-01", revocable: "yes" });
   const isReview = state.creation === "review";
   return (
@@ -297,7 +298,7 @@ function CreationPanel({ state, dispatch }: { state: PrototypeState; dispatch: R
           <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Create sample grant</p>
           <h2 className="mt-2 text-xl text-zinc-100">Review immutable terms</h2>
         </div>
-        <button className={button} onClick={() => dispatch({ type: "setView", view: "list" })}>Back to ongoing vestings</button>
+        <button className={button} onClick={onBack}>Back to ongoing vesting logs</button>
       </div>
       <p className="mt-3 text-sm leading-6 text-zinc-400">The form is simulated. Allocation, recipient, schedule, token, and revocability cannot be changed after a real grant is created.</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -398,11 +399,6 @@ function VariantA({ workspace, state, dispatch, beginDecrypt }: { workspace: Pro
     <div className="grid gap-5 lg:grid-cols-[210px_minmax(0,1fr)_230px]">
       <div className="space-y-5">
         <GrantList workspace={workspace} selectedGrantId={state.selectedGrantId} onSelect={(grantId) => dispatch({ type: "selectGrant", grantId })} />
-        {workspace === "dao" && <section className={panel}>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Grant actions</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Create a new sample grant separately from the selected ongoing grant.</p>
-          <button className={`${primaryButton} mt-4 w-full`} onClick={() => dispatch({ type: "setView", view: "create" })}>Create sample grant</button>
-        </section>}
       </div>
       <div><Operations workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} /></div>
       <aside className={panel}>
@@ -435,6 +431,51 @@ function VariantC({ workspace, state, dispatch, beginDecrypt }: { workspace: Pro
   );
 }
 
+function VariantATabs({ selected, onChange, ongoingTabRef, createTabRef }: { selected: VariantATab; onChange: (tab: VariantATab) => void; ongoingTabRef: React.RefObject<HTMLButtonElement | null>; createTabRef: React.RefObject<HTMLButtonElement | null> }) {
+  const tabs: { id: VariantATab; label: string; ref: React.RefObject<HTMLButtonElement | null> }[] = [
+    { id: "ongoing", label: "Ongoing vesting logs", ref: ongoingTabRef },
+    { id: "create", label: "Create vesting contract", ref: createTabRef },
+  ];
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex + tabs.length - 1) % tabs.length;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = tabs.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    onChange(tabs[nextIndex].id);
+    tabs[nextIndex].ref.current?.focus();
+  }
+
+  return (
+    <div className="mb-6 border-b border-zinc-800" role="tablist" aria-label="DAO vesting work">
+      {tabs.map((tab, index) => {
+        const isSelected = tab.id === selected;
+        return (
+          <button
+            key={tab.id}
+            ref={tab.ref}
+            id={`vesting-${tab.id}-tab`}
+            role="tab"
+            type="button"
+            aria-selected={isSelected}
+            aria-controls={`vesting-${tab.id}-panel`}
+            tabIndex={isSelected ? 0 : -1}
+            className={`border-b-2 px-4 py-3 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-yellow-300 ${isSelected ? "border-yellow-400 text-yellow-300" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}
+            onClick={() => onChange(tab.id)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function VestingPrototype({ workspace }: { workspace: PrototypeWorkspace }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -442,6 +483,9 @@ export function VestingPrototype({ workspace }: { workspace: PrototypeWorkspace 
   const rawVariant = searchParams.get("variant");
   const variant = isPrototypeVariant(rawVariant) ? rawVariant : "A";
   const [state, dispatch] = useReducer(reducer, workspace, initialState);
+  const [variantATab, setVariantATab] = useState<VariantATab>("create");
+  const ongoingTabRef = useRef<HTMLButtonElement>(null);
+  const createTabRef = useRef<HTMLButtonElement>(null);
 
   const changeVariant = useCallback((next: PrototypeVariant) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -456,14 +500,41 @@ export function VestingPrototype({ workspace }: { workspace: PrototypeWorkspace 
   }, [state.contextVersion]);
 
   const CurrentVariant = variant === "A" ? VariantA : variant === "B" ? VariantB : VariantC;
+  const isDaoVariantA = workspace === "dao" && variant === "A";
+  const showCreation = workspace === "dao" && (isDaoVariantA ? variantATab === "create" : state.view === "create");
+  const showOngoing = !showCreation;
+
+  function showOngoingVariantA() {
+    setVariantATab("ongoing");
+    window.requestAnimationFrame(() => ongoingTabRef.current?.focus());
+  }
+
+  function returnToOngoingVestings() {
+    if (isDaoVariantA) {
+      showOngoingVariantA();
+      return;
+    }
+    dispatch({ type: "setView", view: "list" });
+  }
 
   return (
     <div className="pb-24">
       <Heading workspace={workspace} variant={variant} />
       <PrototypeBanner state={state} dispatch={dispatch} />
-      {workspace === "dao" && state.view === "create" ? <CreationPanel state={state} dispatch={dispatch} /> : <CurrentVariant workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />}
+      {isDaoVariantA && <VariantATabs selected={variantATab} onChange={setVariantATab} ongoingTabRef={ongoingTabRef} createTabRef={createTabRef} />}
+      {isDaoVariantA ? (
+        <div id={`vesting-${variantATab}-panel`} role="tabpanel" aria-labelledby={`vesting-${variantATab}-tab`}>
+          {showCreation && <CreationPanel state={state} dispatch={dispatch} onBack={returnToOngoingVestings} />}
+          {showOngoing && <CurrentVariant workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />}
+        </div>
+      ) : (
+        <>
+          {showCreation && <CreationPanel state={state} dispatch={dispatch} onBack={returnToOngoingVestings} />}
+          {showOngoing && <CurrentVariant workspace={workspace} state={state} dispatch={dispatch} beginDecrypt={beginDecrypt} />}
+        </>
+      )}
       {state.notice && <div role="status" className="mt-5 rounded-lg border border-yellow-900 bg-yellow-950/30 p-4 text-sm leading-6 text-yellow-100"><div className="flex items-start justify-between gap-3"><p>{state.notice}</p><button aria-label="Dismiss notice" className="text-yellow-200 hover:text-white" onClick={() => dispatch({ type: "clearNotice" })}>x</button></div></div>}
-      <details className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-xs text-zinc-400"><summary className="cursor-pointer font-mono text-zinc-300">Mock state inspector</summary><pre className="mt-4 overflow-auto text-[11px] leading-5">{JSON.stringify({ workspace, variant, view: state.view, selectedGrantId: state.selectedGrantId, wallet: state.wallet, chain: state.chain, scope: state.scope, contextVersion: state.contextVersion, privateRead: state.privateRead, creation: state.creation, claim: state.claim, revocation: state.revocation, refund: state.refund, privateAmounts: state.privateRead === "decrypted" ? "sample values visible" : "redacted" }, null, 2)}</pre></details>
+      <details className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-xs text-zinc-400"><summary className="cursor-pointer font-mono text-zinc-300">Mock state inspector</summary><pre className="mt-4 overflow-auto text-[11px] leading-5">{JSON.stringify({ workspace, variant, variantATab: isDaoVariantA ? variantATab : undefined, view: state.view, selectedGrantId: state.selectedGrantId, wallet: state.wallet, chain: state.chain, scope: state.scope, contextVersion: state.contextVersion, privateRead: state.privateRead, creation: state.creation, claim: state.claim, revocation: state.revocation, refund: state.refund, privateAmounts: state.privateRead === "decrypted" ? "sample values visible" : "redacted" }, null, 2)}</pre></details>
       <PrototypeSwitcher variant={variant} onChange={changeVariant} />
     </div>
   );
