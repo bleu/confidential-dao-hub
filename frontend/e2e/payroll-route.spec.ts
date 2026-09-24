@@ -83,26 +83,27 @@ test("wrong-chain wallet cannot start a payroll payment", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Authorize multisend" })).toBeDisabled();
 });
 
-test("Sepolia payroll starts with the verified multisend demo token", async ({ page }) => {
+test("Sepolia payroll starts with cUSDT selected", async ({ page }) => {
   await installWallet(page, "0xaa36a7");
   await installPayrollRpc(page);
   await page.goto("/dao/payroll");
 
   await page.getByRole("button", { name: "connect wallet" }).click();
 
-  await expect(page.getByLabel("Payment token address")).toHaveValue("0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA");
+  await expect(page.getByLabel("Payment token")).toHaveValue("0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA");
 });
 
-test("invalid token address cannot start a payroll payment", async ({ page }) => {
+test("Sepolia payroll only offers cUSDT and cTOKEN", async ({ page }) => {
   await installWallet(page, "0xaa36a7");
   await installPayrollRpc(page);
   await page.goto("/dao/payroll");
 
   await page.getByRole("button", { name: "connect wallet" }).click();
-  await page.getByLabel("Payment token address").fill("not-an-address");
 
-  await expect(page.getByText("Enter a valid token address.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Authorize multisend" })).toBeDisabled();
+  const token = page.getByLabel("Payment token");
+  await expect(token.locator("option")).toHaveText(["cUSDT", "cTOKEN"]);
+  await token.selectOption("0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f");
+  await expect(token).toHaveValue("0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f");
 });
 
 test("Sepolia payroll reads the selected token identity", async ({ page }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { decodeEventLog, isAddress, type Address, type Hex } from "viem";
+import { decodeEventLog, type Address, type Hex } from "viem";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useAccount, usePublicClient, useReadContract, useSignTypedData } from "wagmi";
 import { sepolia } from "wagmi/chains";
@@ -9,10 +9,11 @@ import { DecryptionProvider, useDecryption } from "@/lib/decryption-context";
 import { encryptValues } from "@/lib/fhevm";
 import { useTx } from "@/lib/useTx";
 
-import { confidentialTokenAbi, PAYROLL_CONTRACTS, payrollDecryptionScope, payrollMultisendAbi } from "./contracts";
+import { confidentialTokenAbi, PAYROLL_CONTRACTS, PAYROLL_TOKENS, payrollDecryptionScope, payrollMultisendAbi } from "./contracts";
 import { formatTokenAmount, MAX_ENTRIES, parseTokenAmount, type PaymentEntry, type Token, type Validation, validateEntries } from "./model";
 
 type Workspace = "dao" | "community";
+type PayrollToken = typeof PAYROLL_TOKENS[number];
 type TouchedFields = Record<string, { recipient?: boolean; amount?: boolean }>;
 type PaymentRecord = {
   id: string;
@@ -77,14 +78,13 @@ function PayrollHeader({ title }: { title: string }) {
 }
 
 export function PayrollDemo({ workspace }: { workspace: Workspace }) {
-  const [tokenAddress, setTokenAddress] = useState<string>(PAYROLL_CONTRACTS.demoToken);
-  const selectedToken = isAddress(tokenAddress) ? tokenAddress : PAYROLL_CONTRACTS.demoToken;
-  const scope = useMemo(() => payrollDecryptionScope(selectedToken), [selectedToken]);
+  const [selectedToken, setSelectedToken] = useState<PayrollToken>(PAYROLL_TOKENS[0]);
+  const scope = useMemo(() => payrollDecryptionScope(selectedToken.address), [selectedToken]);
 
-  return <DecryptionProvider scope={scope}>{workspace === "dao" ? <DaoPayroll tokenAddress={tokenAddress} onTokenAddressChange={setTokenAddress} /> : <CommunityPayroll />}</DecryptionProvider>;
+  return <DecryptionProvider scope={scope}>{workspace === "dao" ? <DaoPayroll selectedToken={selectedToken} onTokenChange={setSelectedToken} /> : <CommunityPayroll />}</DecryptionProvider>;
 }
 
-function DaoPayroll({ tokenAddress, onTokenAddressChange }: { tokenAddress: string; onTokenAddressChange: (address: string) => void }) {
+function DaoPayroll({ selectedToken: selectedTokenOption, onTokenChange }: { selectedToken: PayrollToken; onTokenChange: (token: PayrollToken) => void }) {
   const { address, chainId, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { sendWithReceipt, pending, error } = useTx();
@@ -95,21 +95,21 @@ function DaoPayroll({ tokenAddress, onTokenAddressChange }: { tokenAddress: stri
   const [checkedBalance, setCheckedBalance] = useState<bigint>();
   const [flowError, setFlowError] = useState<string>();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const tokenAddress = selectedTokenOption.address;
   const contextRef = useRef({ address, chainId, tokenAddress });
   const operationRef = useRef(0);
   contextRef.current = { address, chainId, tokenAddress };
   const [sending, setSending] = useState(false);
   const nextEntryId = useRef(2);
-  const selectedToken = isAddress(tokenAddress) ? tokenAddress : undefined;
-  const canReadToken = isConnected && chainId === sepolia.id && Boolean(selectedToken);
+  const selectedToken = tokenAddress;
+  const canReadToken = isConnected && chainId === sepolia.id;
   const { data: tokenSymbol } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "symbol", query: { enabled: canReadToken } });
   const { data: tokenDecimals } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "decimals", query: { enabled: canReadToken } });
   const { data: isOperator, refetch: refetchOperator } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "isOperator", args: address ? [address, PAYROLL_CONTRACTS.multisend] : undefined, query: { enabled: canReadToken && Boolean(address) } });
   const { data: balanceHandle } = useReadContract({ address: selectedToken, abi: confidentialTokenAbi, functionName: "confidentialBalanceOf", args: address ? [address] : undefined, query: { enabled: canReadToken && Boolean(address) } });
   const token = tokenFromMetadata(selectedToken, tokenSymbol, tokenDecimals);
   const validation = useMemo(() => token ? validateEntries(entries, token, PAYROLL_CONTRACTS.multisend) : { entries: {} }, [entries, token]);
-  const tokenError = isAddress(tokenAddress) ? undefined : "Enter a valid token address.";
-  const accessMessage = tokenError ?? (!isConnected ? "Connect a wallet before preparing a payroll payment." : chainId !== sepolia.id ? "Switch to Sepolia before preparing a payroll payment." : undefined);
+  const accessMessage = !isConnected ? "Connect a wallet before preparing a payroll payment." : chainId !== sepolia.id ? "Switch to Sepolia before preparing a payroll payment." : undefined;
   const localOperatorIsValid = operatorExpiresAt !== undefined && operatorExpiresAt > Date.now() / 1000;
   const requiresAuthorization = isOperator !== true && !localOperatorIsValid;
   const blocked = Boolean(accessMessage) || !token;
@@ -226,7 +226,7 @@ function DaoPayroll({ tokenAddress, onTokenAddressChange }: { tokenAddress: stri
             <p className="mt-1 font-mono text-lg text-zinc-100">{validation.total === undefined || !token ? "Fix entries" : `${formatTokenAmount(validation.total, token.decimals)} ${token.symbol}`}</p>
           </div>
         </div>
-        <label className="mt-5 grid gap-1 text-xs text-zinc-400">Payment token address<input value={tokenAddress} onChange={(event) => onTokenAddressChange(event.target.value)} disabled={sending} spellCheck={false} className={inputClass(tokenError)} />{token && <span className="font-mono text-xs text-zinc-500">{token.symbol} · {token.decimals} decimals</span>}</label>
+        <label className="mt-5 grid gap-1 text-xs text-zinc-400">Payment token<select value={tokenAddress} onChange={(event) => { const next = PAYROLL_TOKENS.find((token) => token.address === event.target.value); if (next) onTokenChange(next); }} disabled={sending} className={inputClass()}>{PAYROLL_TOKENS.map((option) => <option key={option.address} value={option.address}>{option.label}</option>)}</select>{token && <span className="font-mono text-xs text-zinc-500">{token.symbol} · {token.decimals} decimals</span>}</label>
         <div className="mt-6 space-y-3">{entries.map((entry, index) => <PaymentRow key={entry.id} entry={entry} index={index} validation={validation} token={token} showValidation={showValidation} touched={touched[entry.id]} locked={sending} canRemove={entries.length > 1} onChange={updateEntry} onBlur={(id, field) => setTouched((current) => ({ ...current, [id]: { ...current[id], [field]: true } }))} onRemove={(id) => setEntries((current) => current.length > 1 ? current.filter((entry) => entry.id !== id) : current)} />)}</div>
         {showValidation && validation.form && <p className="mt-3 text-sm text-red-300">{validation.form}</p>}
         <div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => setEntries((current) => current.length < MAX_ENTRIES ? [...current, { id: `entry-${nextEntryId.current++}`, recipient: "", amount: "" }] : current)} disabled={sending || entries.length >= MAX_ENTRIES} className={secondary}>Add recipient</button><span className="self-center font-mono text-xs text-zinc-500">{entries.length}/{MAX_ENTRIES} entries</span></div>

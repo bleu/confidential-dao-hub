@@ -60,7 +60,7 @@ Invalid public inputs, invalid encrypted inputs, failed operator checks, and tok
 
 ## Supported tokens and stuck funds
 
-The caller selects an ERC-7984 token on each call. There is no hardcoded asset, token allowlist, or token-specific decimal conversion. Local standard-token tests use separate instances of `GenericConfidentialToken` with its test controls disabled. It inherits the OpenZeppelin ERC-7984 implementation through `ConfidentialGovToken`.
+The frontend offers the deployed cUSDT and cTOKEN contracts on Sepolia. The multisend contract itself accepts an ERC-7984 token on each call; it has no token allowlist or token-specific decimal conversion. Local standard-token tests use separate instances of `GenericConfidentialToken` with its test controls disabled. It inherits the OpenZeppelin ERC-7984 implementation through `ConfidentialGovToken`.
 
 The all-or-zero guarantee requires standard token behavior: a transfer moves the full requested amount or zero on insufficient balance, reports its actual amount, and preserves standard balance and supply accounting. The token must not add fees, partial transfers, or encrypted restrictions that can reject an otherwise funded outgoing payment. An ERC-7984-shaped interface alone does not prove these properties.
 
