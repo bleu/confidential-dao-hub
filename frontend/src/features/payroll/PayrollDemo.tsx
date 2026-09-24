@@ -19,6 +19,7 @@ type PaymentRecord = {
   id: string;
   transactionHash: Hex;
   logIndex: number;
+  blockNumber: bigint;
   sender: Address;
   token: Address;
   recipient: Address;
@@ -51,8 +52,8 @@ function tokenFromMetadata(address: Address | undefined, symbol: string | undefi
   return { address, symbol, decimals };
 }
 
-function decodePayment(log: { address: Address; data: Hex; topics: readonly Hex[]; transactionHash: Hex | null; logIndex: number | null }): PaymentRecord | undefined {
-  if (log.address.toLowerCase() !== PAYROLL_CONTRACTS.multisend.toLowerCase() || !log.transactionHash || log.logIndex === null) return undefined;
+function decodePayment(log: { address: Address; data: Hex; topics: readonly Hex[]; transactionHash: Hex | null; logIndex: number | null; blockNumber: bigint | null }): PaymentRecord | undefined {
+  if (log.address.toLowerCase() !== PAYROLL_CONTRACTS.multisend.toLowerCase() || !log.transactionHash || log.logIndex === null || log.blockNumber === null) return undefined;
   try {
     const event = decodeEventLog({ abi: payrollMultisendAbi, data: log.data, topics: log.topics as [Hex, ...Hex[]] });
     if (event.eventName !== "Payment") return undefined;
@@ -62,6 +63,7 @@ function decodePayment(log: { address: Address; data: Hex; topics: readonly Hex[
       id: `${log.transactionHash}:${log.logIndex}`,
       transactionHash: log.transactionHash,
       logIndex: log.logIndex,
+      blockNumber: log.blockNumber,
       sender,
       token,
       recipient,
@@ -243,7 +245,7 @@ function DaoPayroll({ selectedToken: selectedTokenOption, onTokenChange }: { sel
           {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
           {flowError && <p className="mb-3 text-sm text-red-300">{flowError}</p>}
           {!blocked && selectedToken && balanceHandle && <PrivateBalance handle={balanceHandle} token={token} onValue={setCheckedBalance} />}
-          {requiresAuthorization ? <><p className="mb-3 text-sm text-zinc-300">Authorize the multisend for 15 minutes before sending a payment.</p><button type="button" onClick={authorize} disabled={blocked || pending === "operator"} className={action}>{pending === "operator" ? "Authorizing multisend..." : "Authorize multisend"}</button></> : <button type="button" onClick={sendPayments} disabled={blocked || sending || pending === "payroll"} className={action}>{sending || pending === "payroll" ? "Sending payment..." : "Send payment"}</button>}
+          {requiresAuthorization ? <button type="button" onClick={authorize} disabled={blocked || pending === "operator"} className={action}>{pending === "operator" ? "Authorizing multisend..." : "Authorize multisend"}</button> : <button type="button" onClick={sendPayments} disabled={blocked || sending || pending === "payroll"} className={action}>{sending || pending === "payroll" ? "Sending payment..." : "Send payment"}</button>}
         </div>
       </section>
       <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-7"><h2 className="text-xl text-zinc-100">Recent sent payments</h2><PaymentsList payments={payments} token={token} received={false} /></section>
@@ -316,12 +318,45 @@ function PaymentRow({ entry, validation, token, showValidation, touched, locked,
   return <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_10rem_auto] md:items-start"><label className="grid min-w-0 gap-1"><span className="sr-only">Payment recipient</span><input value={entry.recipient} onChange={(event) => onChange(entry.id, "recipient", event.target.value)} onBlur={() => onBlur(entry.id, "recipient")} disabled={locked} spellCheck={false} className={inputClass(recipientError)} />{recipientError && <span className="text-xs text-red-300">{recipientError}</span>}</label><label className="grid min-w-0 gap-1"><span className="sr-only">Amount in {token?.symbol ?? "token"}</span><input value={entry.amount} onChange={(event) => onChange(entry.id, "amount", event.target.value)} onBlur={() => onBlur(entry.id, "amount")} disabled={locked} inputMode="decimal" className={inputClass(amountError)} />{amountError && <span className="text-xs text-red-300">{amountError}</span>}</label><button type="button" onClick={() => onRemove(entry.id)} disabled={locked || !canRemove} className={`justify-self-end self-center text-xs text-zinc-400 hover:text-yellow-300 disabled:cursor-not-allowed disabled:text-zinc-600 ${focus}`}>Remove</button></div>;
 }
 
-function PaymentsList({ payments, token, received = false }: { payments: PaymentRecord[]; token?: Token; received?: boolean }) {
-  if (!payments.length) return <p className="mt-5 text-sm text-zinc-500">No payments found.</p>;
-  return <ul className="mt-5 divide-y divide-zinc-800">{payments.map((payment) => <PrivatePaymentRow key={payment.id} payment={payment} token={token} received={received} />)}</ul>;
+function usePaymentDates(payments: PaymentRecord[]) {
+  const publicClient = usePublicClient();
+  const [timestamps, setTimestamps] = useState<Record<string, bigint>>({});
+
+  useEffect(() => {
+    let active = true;
+    if (!publicClient || !payments.length) {
+      setTimestamps({});
+      return;
+    }
+    const blockNumbers = [...new Set(payments.map((payment) => payment.blockNumber))];
+    void Promise.all(blockNumbers.map(async (blockNumber) => [blockNumber.toString(), (await publicClient.getBlock({ blockNumber })).timestamp] as const)).then((entries) => {
+      if (active) setTimestamps(Object.fromEntries(entries));
+    }).catch(() => {
+      if (active) setTimestamps({});
+    });
+    return () => { active = false; };
+  }, [payments, publicClient]);
+
+  return timestamps;
 }
 
-function PrivatePaymentRow({ payment, token, received }: { payment: PaymentRecord; token?: Token; received: boolean }) {
+function formatPaymentDate(timestamp: bigint | undefined) {
+  if (timestamp === undefined) return "Unavailable";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(Number(timestamp) * 1000));
+}
+
+function shortHash(hash: Hex) {
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
+function PaymentsList({ payments, token, received = false }: { payments: PaymentRecord[]; token?: Token; received?: boolean }) {
+  const timestamps = usePaymentDates(payments);
+  const counterparty = received ? "Sender" : "Receiver";
+  const label = received ? "Received payments" : "Recent sent payments";
+  return <div className="mt-5 overflow-x-auto"><table aria-label={label} className="w-full min-w-[42rem] text-left text-sm"><thead className="border-b border-zinc-800 font-mono text-xs uppercase tracking-widest text-zinc-500"><tr><th scope="col" className="px-3 py-3 font-normal">Tx hash</th><th scope="col" className="px-3 py-3 font-normal">Date</th><th scope="col" className="px-3 py-3 font-normal">{counterparty}</th><th scope="col" className="px-3 py-3 font-normal">Details</th></tr></thead><tbody className="divide-y divide-zinc-800">{payments.length ? payments.map((payment) => <PrivatePaymentRow key={payment.id} payment={payment} token={token} received={received} timestamp={timestamps[payment.blockNumber.toString()]} />) : <tr><td colSpan={4} className="px-3 py-5 text-zinc-500">No payments found.</td></tr>}</tbody></table></div>;
+}
+
+function PrivatePaymentRow({ payment, token, received, timestamp }: { payment: PaymentRecord; token?: Token; received: boolean; timestamp?: bigint }) {
   const decryption = useDecryption();
   const { signTypedDataAsync } = useSignTypedData();
   const { data: historicTokenSymbol } = useReadContract({ address: payment.token, abi: confidentialTokenAbi, functionName: "symbol", query: { enabled: !token } });
@@ -344,5 +379,6 @@ function PrivatePaymentRow({ payment, token, received }: { payment: PaymentRecor
     }
   };
   const amount = (value: bigint) => displayToken ? `${formatTokenAmount(value, displayToken.decimals)} ${displayToken.symbol}` : "Private token amount";
-  return <li className="grid gap-3 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1fr)_auto] sm:items-center">{received ? <span className="text-zinc-300">Received payment</span> : <span className="min-w-0 break-all font-mono text-xs text-zinc-300">{payment.recipient}</span>}<div className="grid gap-3">{hasDetails ? <span className="grid gap-1 font-mono text-xs text-zinc-100"><span>Requested {amount(requested)}</span><span>Actual {amount(actual)}</span><span className={actual === 0n ? "text-yellow-200" : actual === requested ? "text-green-200" : "text-yellow-200"}>{actual === 0n ? "Verified zero" : actual === requested ? "Verified paid" : "Actual amount differs"}</span></span> : <span className="font-mono text-xs text-zinc-500">Private details locked</span>}{phase === "decrypting" ? <span className="text-xs text-yellow-100">Decrypting...</span> : phase === "error" ? <span className="text-xs text-red-300">Could not decrypt this payment. Try again.</span> : !hasDetails && <button type="button" onClick={decrypt} className={secondary}>Sign to view details</button>}</div><a className="font-mono text-xs text-zinc-400 hover:text-yellow-300" href={`https://sepolia.etherscan.io/tx/${payment.transactionHash}`} target="_blank" rel="noreferrer">View transaction</a></li>;
+  const counterparty = received ? payment.sender : payment.recipient;
+  return <tr className="align-top"><td className="px-3 py-4 font-mono text-xs"><a aria-label={`Open transaction ${payment.transactionHash} in Etherscan`} className="text-zinc-400 hover:text-yellow-300" href={`https://sepolia.etherscan.io/tx/${payment.transactionHash}`} target="_blank" rel="noreferrer">{shortHash(payment.transactionHash)}</a></td><td className="whitespace-nowrap px-3 py-4 font-mono text-xs text-zinc-400">{formatPaymentDate(timestamp)}</td><td className="max-w-52 break-all px-3 py-4 font-mono text-xs text-zinc-300">{counterparty}</td><td className="min-w-48 px-3 py-4">{hasDetails ? <span className="grid gap-1 font-mono text-xs text-zinc-100"><span>Requested {amount(requested)}</span><span>Actual {amount(actual)}</span><span className={actual === 0n ? "text-yellow-200" : actual === requested ? "text-green-200" : "text-yellow-200"}>{actual === 0n ? "Verified zero" : actual === requested ? "Verified paid" : "Actual amount differs"}</span></span> : <span className="font-mono text-xs text-zinc-500">Details locked</span>}{phase === "decrypting" ? <span className="mt-2 block text-xs text-yellow-100">Decrypting...</span> : phase === "error" ? <span className="mt-2 block text-xs text-red-300">Could not decrypt this payment. Try again.</span> : !hasDetails && <button type="button" onClick={decrypt} className={`mt-2 inline-flex items-center rounded px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800 ${focus}`}>Review</button>}</td></tr>;
 }

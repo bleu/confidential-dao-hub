@@ -124,6 +124,14 @@ test("payroll groups payment rows under shared payment and amount headings", asy
   await expect(page.getByText("Payment 1", { exact: true })).not.toBeVisible();
 });
 
+test("payroll shows sent payment history in a public details table", async ({ page }) => {
+  await page.goto("/dao/payroll");
+
+  await expect(page.getByText("Authorize the multisend for 15 minutes before sending a payment.")).not.toBeVisible();
+  const history = page.getByRole("table", { name: "Recent sent payments" });
+  await expect(history.getByRole("columnheader")).toHaveText(["Tx hash", "Date", "Receiver", "Details"]);
+});
+
 test("Sepolia wallet can authorize the multisend after token reads load", async ({ page }) => {
   await installWallet(page, "0xaa36a7");
   await installPayrollRpc(page);
