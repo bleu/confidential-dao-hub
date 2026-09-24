@@ -1,6 +1,6 @@
 # Vesting
 
-The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. The DAO and Community routes now provide a UI-only preview with local display data. Sepolia deployment, event indexing, wallet integration, private reads, and transaction actions remain pending. This is a PoC, not audited or production-ready.
+The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and tested locally with the FHEVM mock. `ConfidentialVesting` is deployed on Sepolia. The DAO and Community routes discover the connected wallet's grant records, show public details, and decrypt private values only for the grant treasury or recipient. Creation, claim, revocation, and refund actions remain pending. This is a PoC, not audited or production-ready.
 
 ## Contract and custody
 
@@ -53,7 +53,7 @@ All payouts account for actual transferred amounts. A zero or reverted claim doe
 
 `GrantCreated(grantId, treasury, recipient, token)` indexes the grant ID, treasury, and recipient. The token address is in the event data. `GrantClaimed`, `GrantRevoked`, and `GrantRefundRetried` index the grant ID. None includes an amount. There are no on-chain grant ID lists per wallet.
 
-Use an event index for Created by me and Received by me. The indexing server belongs to the frontend discovery task and is not included here. Public detail reads provide the schedule and ciphertext handles; they do not grant decryption access.
+Use `GrantCreated` logs from the deployment block for Created by me and Received by me. Query the indexed treasury and recipient values separately, then deduplicate grant IDs. Public detail reads provide the schedule and ciphertext handles; they do not grant decryption access.
 
 After authorized decryption, estimate progress locally using integer arithmetic:
 
@@ -91,11 +91,11 @@ The ABI is generated at `contracts/abi/vesting/ConfidentialVesting.json` relativ
 
 The deployment configuration is `contracts/scripts/vesting/deployment.ts`. It uses the preserved `ConfidentialVesting` tag and `deploy_confidential_vesting_v1` deployment ID. The preflight and deployment wrappers use the shared helpers described in the [deployment guide](../deployment.md). The contract has no constructor arguments, token list, or treasury setting. Existing buyback deployment identifiers and addresses are unchanged.
 
-## Later Sepolia deployment
+## Sepolia deployment
 
-No live deployment was made for this contract stage. The app has UI-only Vesting routes backed by preview data; they do not yet use this deployment path. An operator must explicitly deploy and verify the contract in the separate deployment task.
+`ConfidentialVesting` v1 is deployed at `0xD75E947e4262627E8fbE009585206F461afFA4b1` on Sepolia (chain ID `11155111`) in block `11766387`. Its transaction is `0xd217c01a59c403cf564df4aab6480dd7912ffd03d548670239808fe6b67cee9b`. The frontend starts discovery from this block and uses the ABI and deployment record in `contracts/deployment-records/vesting/sepolia/`. Do not rerun deployment for this immutable v1 contract.
 
-From `contracts/`, set `PRIVATE_KEY`, `RPC_URL`, `ETHERSCAN_API_KEY`, and the shared `EXPECTED_DEPLOYER_ADDRESS` locally. Do not commit or print the private key. Start with the preflight:
+For a new contract version, set `PRIVATE_KEY`, `RPC_URL`, `ETHERSCAN_API_KEY`, and the shared `EXPECTED_DEPLOYER_ADDRESS` locally from `contracts/`. Do not commit or print the private key. Start with preflight:
 
 ```bash
 npm run preflight:vesting:sepolia
