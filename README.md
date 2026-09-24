@@ -44,7 +44,7 @@ frontend/src/
   app/                      # Chooser, Community, DAO dashboard, shared public report
   components/               # Shared shell, wallet button, encrypted values
   features/buybacks/        # Buyback panels, epoch reads, addresses and ABIs
-  features/payroll/         # Mock payroll demo, exact-unit model, and private-state guard
+  features/payroll/         # Wallet-backed payroll flow, exact-unit model, and private-state guard
   lib/                      # Wallet, FHE, decryption, transaction utilities
 contracts/
   src/buybacks/              # BuybackVault and oracle interface
@@ -99,8 +99,8 @@ Visit `http://localhost:3000` to choose a workspace. No wallet is needed to brow
 | `/dao` | Current DAO overview |
 | `/dao/buybacks` | Buyback treasury |
 | `/buybacks/report` | Shared public buyback report |
-| `/dao/payroll` | Mock DAO payroll sender demo |
-| `/community/payroll` | Mock community payroll receiver demo |
+| `/dao/payroll` | DAO payroll sender |
+| `/community/payroll` | Community payroll receiver |
 | `/community/vesting` | Received vesting grants, UI preview |
 | `/dao/vesting` | Create and manage vesting grants, UI preview |
 | `/{community,dao}/payment-requests` | Payment Requests, Soon |

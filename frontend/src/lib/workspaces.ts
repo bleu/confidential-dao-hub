@@ -69,7 +69,7 @@ export function workspaceLinks(workspace: Workspace): WorkspaceLink[] {
       href: payrollHref(workspace),
       label: workspace === "community" ? "My payroll" : "Payroll",
       soon: false,
-      ...(workspace === "dao" ? { description: "Mock sender flow with private payment details", action: "Open payroll" } : {}),
+      ...(workspace === "dao" ? { description: "Send private caller-funded payments", action: "Open payroll" } : {}),
     },
     { href: `/${workspace}/payment-requests`, label: "Payment Requests", soon: true },
     { href: `/${workspace}/token-launchpad`, label: "Token Launchpad", soon: true },
