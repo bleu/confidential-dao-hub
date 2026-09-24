@@ -1,6 +1,6 @@
 # Confidential Ops Hub
 
-A PoC for confidential DAO treasury operations on Zama FHEVM. Buybacks is implemented. Payroll has mock DAO and Community flows with no wallet, RPC, signature, transaction, or persistent salary data. Vesting has UI-only DAO and Community routes backed by preview data; wallet, contract, decryption, indexer, and transaction integration remain pending. The other operations are future features displayed as Soon. Read the root README for setup and repository navigation.
+A PoC for confidential DAO treasury operations on Zama FHEVM. Buybacks is implemented. Payroll has wallet-backed DAO and Community flows for caller-funded confidential multisend payments on Sepolia. It has no administrator, employee roster, saved salary data, advance funding, managed payroll balance, or duplicate-payment protection. Vesting has UI-only DAO and Community routes backed by preview data; wallet, contract, decryption, indexer, and transaction integration remain pending. The other operations are future features displayed as Soon. Read the root README for setup and repository navigation.
 
 ## Architecture
 

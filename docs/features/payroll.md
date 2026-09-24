@@ -2,7 +2,7 @@
 
 Payroll uses a permissionless multisend to pay several recipients with one confidential token. Each call spends the caller's funds. There is no administrator, employee roster, saved salary, advance deposit, or managed payroll balance. See [ADR 0003](../adr/0003-payroll.md) for the design decision.
 
-Payroll has a frontend demo at `/dao/payroll` and `/community/payroll`. It uses fictional cUSDT data and an in-memory mock ledger only. It simulates signing, balance checks, token permission, payment submission, verification, and private reads; it does not connect a wallet, RPC, real signature, transaction, or persistent salary storage. Each DAO payment row can show its mock details after its own mock signing. The Community view can show only the fixed demo receiver's payment rows after signing each row. A workspace switch or the DAO new-payment reset clears private view state and invalidates pending mock reads, while the mock payment history remains available. The deployed contract and its live payment checks remain separate from the demo. Live frontend integration is pending, and payroll is not live. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making payroll live.
+Payroll has wallet-backed frontend routes at `/dao/payroll` and `/community/payroll`. The DAO route checks Sepolia, reads the selected token's public metadata and encrypted balance handle, asks the caller to decrypt that balance, grants a time-limited operator permission, encrypts payment amounts, submits `multisend`, checks for a successful receipt, and records only decoded `Payment` logs. It clears decrypted data when the wallet, network, or selected token changes. The Community route discovers only `Payment` logs for the connected recipient. Both routes require a wallet signature to decrypt private payment values. They do not persist plaintext values. The frontend has local route checks only. No live payment or private-read check has run, so payroll is not yet verified for production use. Follow the [feature delivery stages](../adr/0009-feature-delivery-stages.md) before making payroll live.
 
 ## Contract interface
 
@@ -60,7 +60,7 @@ Invalid public inputs, invalid encrypted inputs, failed operator checks, and tok
 
 ## Supported tokens and stuck funds
 
-The caller selects an ERC-7984 token on each call. There is no hardcoded asset, token allowlist, or token-specific decimal conversion. Local standard-token tests use separate instances of `GenericConfidentialToken` with its test controls disabled. It inherits the OpenZeppelin ERC-7984 implementation through `ConfidentialGovToken`.
+The frontend offers the deployed cUSDT and cTOKEN contracts on Sepolia. The multisend contract itself accepts an ERC-7984 token on each call; it has no token allowlist or token-specific decimal conversion. Local standard-token tests use separate instances of `GenericConfidentialToken` with its test controls disabled. It inherits the OpenZeppelin ERC-7984 implementation through `ConfidentialGovToken`.
 
 The all-or-zero guarantee requires standard token behavior: a transfer moves the full requested amount or zero on insufficient balance, reports its actual amount, and preserves standard balance and supply accounting. The token must not add fees, partial transfers, or encrypted restrictions that can reject an otherwise funded outgoing payment. An ERC-7984-shaped interface alone does not prove these properties.
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CURRENT_DAO, routes } from "@/lib/workspaces";
+import { routes } from "@/lib/workspaces";
 
 export default function Home() {
   return (
@@ -10,8 +10,8 @@ export default function Home() {
       </h1>
       <div className="grid gap-4">
         {[
-          { href: routes.community, title: "Community", text: "Sell tokens and claim payments.", action: "Find a buyback" },
-          { href: routes.dao, title: "DAO dashboard", text: "Create and manage buybacks.", action: `View ${CURRENT_DAO.name}` },
+          { href: routes.community, title: "Community", text: "Explore community operations.", action: "Open workspace" },
+          { href: routes.dao, title: "DAO dashboard", text: "Manage DAO operations.", action: "Open workspace" },
         ].map(({ href, title, text, action }) => (
           <Link
             key={href}

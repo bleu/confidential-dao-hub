@@ -1,5 +1,6 @@
 "use client";
 
+import type { Hex } from "viem";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { usePublicClient, useWriteContract } from "wagmi";
@@ -19,24 +20,28 @@ export function useTx() {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const send = useCallback(
+  const sendWithReceipt = useCallback(
     async (
       label: string,
       params: WriteParams | (() => Promise<WriteParams>),
     ) => {
       setPending(label);
       setError(null);
+      let hash: Hex | undefined;
+      let receiptObserved = false;
       try {
         const resolved = typeof params === "function" ? await params() : params;
-        const hash = await writeContractAsync(resolved);
-        await publicClient!.waitForTransactionReceipt({ hash });
+        hash = await writeContractAsync(resolved);
+        const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+        receiptObserved = true;
+        if (receipt.status !== "success")
+          throw new Error("Transaction reverted.");
         await queryClient.invalidateQueries();
-        return true;
+        return { hash, receipt };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        // Surface the useful part of viem's verbose errors.
-        setError(message.split("\n")[0].slice(0, 200));
-        return false;
+        setError(hash && !receiptObserved ? `Transaction status is unknown. Check ${hash} before sending again.` : message.split("\n")[0].slice(0, 200));
+        return hash && !receiptObserved ? { hash } : undefined;
       } finally {
         setPending(null);
       }
@@ -44,5 +49,13 @@ export function useTx() {
     [writeContractAsync, publicClient, queryClient],
   );
 
-  return { send, pending, error, setError };
+  const send = useCallback(
+    async (
+      label: string,
+      params: WriteParams | (() => Promise<WriteParams>),
+    ) => Boolean((await sendWithReceipt(label, params))?.receipt),
+    [sendWithReceipt],
+  );
+
+  return { send, sendWithReceipt, pending, error, setError };
 }
