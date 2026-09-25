@@ -39,16 +39,27 @@ type FormValues = {
   revocable: boolean;
 };
 
+type ReviewConfirmation = {
+  label: string;
+  disabled: boolean;
+  canEdit: boolean;
+  message?: string;
+  onAction: () => void;
+  onEdit?: () => void;
+};
+
 export function VestingCreateGrantForm({
   treasury,
   tokens,
   nowSeconds,
   onConfirm,
+  confirmation,
 }: {
   treasury: Address;
   tokens: readonly VestingToken[];
   nowSeconds: bigint;
   onConfirm: (request: CreateGrantRequest) => void;
+  confirmation?: ReviewConfirmation;
 }) {
   const [values, setValues] = useState<FormValues>({
     recipient: "",
@@ -106,6 +117,12 @@ export function VestingCreateGrantForm({
 
   if (review) {
     const { request, preview } = review;
+    const action = confirmation ?? {
+      label: "Confirm grant",
+      disabled: false,
+      canEdit: true,
+      onAction: () => onConfirm(request),
+    };
     return (
       <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6">
         <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Review grant</p>
@@ -126,9 +143,10 @@ export function VestingCreateGrantForm({
         ) : (
           <p className="mt-4 text-sm leading-6 text-amber-200">The cliff has not passed. Accrued tokens are not available yet.</p>
         )}
+        {action.message && <p className="mt-4 text-sm leading-6 text-zinc-300" role="status">{action.message}</p>}
         <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" onClick={() => setReview(undefined)} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200">Back</button>
-          <button type="button" onClick={() => onConfirm(request)} className="rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">Confirm grant</button>
+          <button type="button" disabled={!action.canEdit} onClick={() => { action.onEdit?.(); setReview(undefined); }} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200">Back</button>
+          <button type="button" disabled={action.disabled} onClick={action.onAction} className="rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">{action.label}</button>
         </div>
       </section>
     );
@@ -177,6 +195,7 @@ export function VestingCreateGrantPanel() {
   const { send, sendWithReceipt, pending, error } = useTx();
   const [request, setRequest] = useState<CreateGrantRequest>();
   const [creation, setCreation] = useState<GrantCreationState>();
+  const [formVersion, setFormVersion] = useState(0);
   const version = useRef(0);
   const currentContext = useRef({ address, chainId, decryption });
   currentContext.current = { address, chainId, decryption };
@@ -194,6 +213,7 @@ export function VestingCreateGrantPanel() {
     version.current++;
     setRequest(undefined);
     setCreation(undefined);
+    setFormVersion((current) => current + 1);
   }, [address, chainId, decryption]);
 
   if (!wallet) return <p className="text-sm text-zinc-400">Connect the treasury wallet to create a grant.</p>;
@@ -289,28 +309,49 @@ export function VestingCreateGrantPanel() {
     if (result.state === "funded" && current()) router.push(`/dao/vesting/${result.grantId}`);
   }
 
-  if (!request) {
-    return <VestingCreateGrantForm treasury={wallet} tokens={VESTING_TOKENS} nowSeconds={BigInt(Math.floor(Date.now() / 1_000))} onConfirm={setRequest} />;
-  }
+  const confirmation = request && describeConfirmation({
+    creation,
+    operatorReady: operator.data === true,
+    operatorLoading: operator.isLoading,
+    pending,
+    transactionError: error,
+    authorize,
+    submit: () => submitGrant(request),
+    retryPrivateCheck: retryFundingCheck,
+    reset: () => {
+      setRequest(undefined);
+      setCreation(undefined);
+      setFormVersion((current) => current + 1);
+    },
+  });
 
-  if (operator.data !== true) {
-    return <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Authorization</p><h2 className="mt-2 text-xl text-zinc-100">Authorize confidential funding</h2><p className="mt-3 text-sm leading-6 text-zinc-400">Authorize the vesting contract to transfer the selected confidential token. This approval must last through grant creation.</p>{error && <p className="mt-3 text-sm text-red-300">Authorization failed: {error}</p>}<button type="button" onClick={authorize} disabled={pending !== null || operator.isLoading} className="mt-4 rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">{pending === "vesting-operator" ? "Authorizing…" : "Authorize vesting contract"}</button></section>;
-  }
+  const formConfirmation = confirmation && {
+    ...confirmation,
+    onEdit: () => setRequest(undefined),
+  };
 
-  if (!creation || creation.state === "transaction-error") {
-    return <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6"><p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Funding</p><h2 className="mt-2 text-xl text-zinc-100">Create and verify grant</h2><p className="mt-3 text-sm leading-6 text-zinc-400">The amount stays encrypted. A mined transaction is not funding confirmation.</p>{creation?.state === "transaction-error" && <p className="mt-3 text-sm text-red-300">Grant creation failed: {creation.message}</p>}<button type="button" onClick={() => submitGrant(request)} disabled={pending !== null} className="mt-4 rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">Encrypt and create grant</button></section>;
-  }
-
-  if (creation.state === "retryable-decryption-error") return <ResultPanel message="Grant created, but private funding verification failed. This does not mean zero funding." action="Retry private funding check" onAction={retryFundingCheck} />;
-  if (creation.state === "zero-funded") return <ResultPanel message="This grant record has zero confirmed funding. It is not an active funded entitlement. Create a new grant to retry funding." action="Create a new grant" onAction={() => { setRequest(undefined); setCreation(undefined); }} />;
-  if (creation.state === "funded") return <ResultPanel message={`Grant ${creation.grantId} is privately verified as funded.`} />;
-  if (creation.state === "transaction-pending") return <ResultPanel message="Transaction pending." />;
-  if (creation.state === "mined-awaiting-private-check") return <ResultPanel message="Transaction mined. Verifying funding privately…" />;
-  return <ResultPanel message="Encrypting grant allocation…" />;
+  return <VestingCreateGrantForm key={formVersion} treasury={wallet} tokens={VESTING_TOKENS} nowSeconds={BigInt(Math.floor(Date.now() / 1_000))} onConfirm={setRequest} confirmation={formConfirmation ?? undefined} />;
 }
 
-function ResultPanel({ message, action, onAction }: { message: string; action?: string; onAction?: () => void }) {
-  return <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6"><p className="text-sm leading-6 text-zinc-300">{message}</p>{action && <button type="button" onClick={onAction} className="mt-4 rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">{action}</button>}</section>;
+export function describeConfirmation({ creation, operatorReady, operatorLoading, pending, transactionError, authorize, submit, retryPrivateCheck, reset }: { creation?: GrantCreationState; operatorReady: boolean; operatorLoading: boolean; pending: string | null; transactionError: string | null; authorize: () => void; submit: () => void; retryPrivateCheck: () => void; reset: () => void }): ReviewConfirmation {
+  if (!operatorReady) {
+    const authorizing = pending === "vesting-operator";
+    return {
+      label: authorizing ? "Authorizing..." : "Authorize vesting contract",
+      disabled: pending !== null || operatorLoading,
+      canEdit: !authorizing,
+      message: transactionError ? `Authorization failed: ${transactionError}` : "Authorize the vesting contract to transfer the selected confidential token.",
+      onAction: authorize,
+    };
+  }
+  if (!creation) return { label: "Encrypt and create grant", disabled: pending !== null, canEdit: true, onAction: submit };
+  if (creation.state === "transaction-error") return { label: "Retry grant creation", disabled: pending !== null, canEdit: false, message: `Grant creation failed: ${creation.message}`, onAction: submit };
+  if (creation.state === "retryable-decryption-error") return { label: "Retry private funding check", disabled: false, canEdit: false, message: "Grant created, but private funding verification failed. This does not mean zero funding.", onAction: retryPrivateCheck };
+  if (creation.state === "zero-funded") return { label: "Create a new grant", disabled: false, canEdit: false, message: "This grant record has zero confirmed funding. It is not an active funded entitlement.", onAction: reset };
+  if (creation.state === "funded") return { label: "Grant funded", disabled: true, canEdit: false, message: `Grant ${creation.grantId} is privately verified as funded.`, onAction: () => {} };
+  if (creation.state === "transaction-pending") return { label: "Transaction pending...", disabled: true, canEdit: false, onAction: () => {} };
+  if (creation.state === "mined-awaiting-private-check") return { label: "Verifying funding privately...", disabled: true, canEdit: false, onAction: () => {} };
+  return { label: "Encrypting grant allocation...", disabled: true, canEdit: false, onAction: () => {} };
 }
 
 const inputClass = "mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100";

@@ -88,4 +88,43 @@ describe("VestingCreateGrantForm", () => {
       revocable: true,
     });
   });
+
+  it("keeps immutable terms visible while its action changes", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const { rerender } = render(
+      <VestingCreateGrantForm
+        treasury={treasury}
+        tokens={tokens}
+        nowSeconds={1_750_000_000n}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Recipient"), recipient);
+    await user.type(screen.getByLabelText("Value"), "12.5");
+    await user.type(screen.getByLabelText("Vesting duration"), "1");
+    await user.click(screen.getByRole("button", { name: "Review grant" }));
+    await user.click(screen.getByRole("button", { name: "Confirm grant" }));
+
+    rerender(
+      <VestingCreateGrantForm
+        treasury={treasury}
+        tokens={tokens}
+        nowSeconds={1_750_000_000n}
+        onConfirm={onConfirm}
+        confirmation={{
+          label: "Encrypting grant allocation...",
+          disabled: true,
+          canEdit: false,
+          onAction: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Confirm immutable terms" })).toBeTruthy();
+    expect(screen.getByText(recipient)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Encrypting grant allocation..." })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Encrypting grant allocation..." }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
