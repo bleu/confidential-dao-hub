@@ -11,7 +11,6 @@ import {
 } from "./contracts";
 import {
   discoverVestingGrants,
-  type VestingGrantRead,
   type VestingReadClient,
 } from "./data";
 
@@ -42,12 +41,12 @@ function createVestingReadClient(
         .filter((id): id is bigint => id !== undefined);
     },
     async readGrant(id) {
-      return (await publicClient.readContract({
+      return publicClient.readContract({
         address: VESTING_CONTRACT,
         abi: vestingAbi,
         functionName: "getGrant",
         args: [id],
-      })) as unknown as VestingGrantRead;
+      });
     },
   };
 }

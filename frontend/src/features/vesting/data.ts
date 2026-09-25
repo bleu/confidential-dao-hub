@@ -26,9 +26,9 @@ export type VestingGrantRead = {
   treasury: Address;
   recipient: Address;
   token: Address;
-  start: bigint;
-  end: bigint;
-  cliff: bigint;
+  start: number;
+  end: number;
+  cliff: number;
   revocable: boolean;
   revoked: boolean;
   revokedAt: bigint;
@@ -39,14 +39,18 @@ export type VestingGrantRead = {
 };
 
 export function normalizeGrant(id: bigint, grant: VestingGrantRead): PublicGrant {
+  const start = BigInt(grant.start);
+  const end = BigInt(grant.end);
+  const cliff = grant.cliff === 0 ? null : BigInt(grant.cliff);
+
   return {
     id,
     treasury: grant.treasury,
     recipient: grant.recipient,
     token: grant.token,
-    start: grant.start,
-    end: grant.end,
-    cliff: grant.cliff === 0n ? null : grant.cliff,
+    start,
+    end,
+    cliff,
     revocable: grant.revocable,
     revokedAt: grant.revoked ? grant.revokedAt : null,
     handles: {

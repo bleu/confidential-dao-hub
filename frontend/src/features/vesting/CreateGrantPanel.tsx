@@ -138,9 +138,7 @@ export function VestingCreateGrantForm({
           <ReviewFact label="Cliff" value={request.cliff === 0n ? "None" : formatDate(request.cliff)} />
           <ReviewFact label="Revocability" value={request.revocable ? "Revocable" : "Not revocable"} />
         </dl>
-        {preview.cliffPassed ? (
-          <p className="mt-4 text-sm leading-6 text-zinc-400">The schedule has {preview.vested.toString()} base units vested at this browser time. Transaction execution time controls the final amount.</p>
-        ) : (
+        {!preview.cliffPassed && (
           <p className="mt-4 text-sm leading-6 text-amber-200">The cliff has not passed. Accrued tokens are not available yet.</p>
         )}
         {action.message && <p className="mt-4 text-sm leading-6 text-zinc-300" role="status">{action.message}</p>}
