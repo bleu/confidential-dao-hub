@@ -175,7 +175,7 @@ test("rejects invalid grant terms before encryption", () => {
   assert.deepEqual(result, {
     errors: {
       recipient: "Enter a recipient wallet.",
-      allocation: "Enter a positive allocation.",
+      allocation: "Enter a positive value.",
       end: "End must follow start and be in the future.",
       cliff: "Cliff must fall between start and end.",
     },

@@ -269,7 +269,7 @@ export function prepareCreateGrant(
     errors.recipient = "Enter a recipient wallet.";
   }
   if (allocation === undefined || allocation === 0n) {
-    errors.allocation = "Enter a positive allocation.";
+    errors.allocation = "Enter a positive value.";
   } else if (allocation > MAX_UINT64) {
     errors.allocation = "Allocation exceeds the supported limit.";
   }

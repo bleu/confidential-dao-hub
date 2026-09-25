@@ -49,26 +49,28 @@ describe("VestingCreateGrantForm", () => {
     expect(screen.getByRole("option", { name: "cTOKEN" })).toBeTruthy();
     expect(screen.getByRole("option", { name: "cUSDT" })).toBeTruthy();
     expect((screen.getByLabelText("Vesting unit") as HTMLSelectElement).value).toBe("day");
-    expect((screen.getByLabelText("Cliff duration") as HTMLInputElement).value).toBe("0");
-    expect((screen.getByLabelText("Not revocable") as HTMLInputElement).checked).toBe(true);
-    expect(screen.queryByLabelText("Custom start date")).toBeNull();
+    expect((screen.getByLabelText("Cliff unit") as HTMLSelectElement).value).toBe("day");
+    expect((screen.getByLabelText("Cliff duration (optional)") as HTMLInputElement).value).toBe("0");
+    expect((screen.getByLabelText("Start date (optional)") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Revocability") as HTMLSelectElement).value).toBe("false");
+    expect(screen.queryByLabelText("Set custom start date")).toBeNull();
+    expect(screen.queryByText(/fixed treasury and refund destination/i)).toBeNull();
   });
 
-  it("derives immutable terms from durations and a custom calendar date", async () => {
+  it("derives immutable terms from durations and an optional calendar date", async () => {
     const user = userEvent.setup();
     const onConfirm = renderForm();
 
     await user.type(screen.getByLabelText("Recipient"), recipient);
-    await user.type(screen.getByLabelText("Allocation"), "12.5");
+    await user.type(screen.getByLabelText("Value"), "12.5");
     await user.selectOptions(screen.getByLabelText("Token"), tokens[1].address);
     await user.type(screen.getByLabelText("Vesting duration"), "2");
     await user.selectOptions(screen.getByLabelText("Vesting unit"), "year");
-    await user.clear(screen.getByLabelText("Cliff duration"));
-    await user.type(screen.getByLabelText("Cliff duration"), "1");
+    await user.clear(screen.getByLabelText("Cliff duration (optional)"));
+    await user.type(screen.getByLabelText("Cliff duration (optional)"), "1");
     await user.selectOptions(screen.getByLabelText("Cliff unit"), "month");
-    await user.click(screen.getByLabelText("Set custom start date"));
-    await user.type(screen.getByLabelText("Custom start date"), "2025-01-01");
-    await user.click(screen.getByLabelText("Revocable"));
+    await user.type(screen.getByLabelText("Start date (optional)"), "2025-01-01");
+    await user.selectOptions(screen.getByLabelText("Revocability"), "true");
     await user.click(screen.getByRole("button", { name: "Review grant" }));
 
     expect(screen.getByText("cUSDT")).toBeTruthy();
