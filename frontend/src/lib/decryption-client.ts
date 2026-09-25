@@ -60,9 +60,7 @@ export function createDecryptionClient(
     contractAddress: string,
   ): bigint | undefined => {
     if (!userAddress || !contains(contractAddress)) return undefined;
-    return handle.toLowerCase() === ZERO_HANDLE
-      ? 0n
-      : cache.get(key({ handle, contractAddress }));
+    return cache.get(key({ handle, contractAddress }));
   };
 
   async function getSession(sign: SignTypedDataFn): Promise<Session> {
@@ -134,6 +132,9 @@ export function createDecryptionClient(
       if (pairs.some((pair) => !contains(pair.contractAddress))) {
         throw new Error("Contract is outside this feature's decryption scope.");
       }
+      if (pairs.some((pair) => pair.handle.toLowerCase() === ZERO_HANDLE)) {
+        throw new Error("Cannot decrypt an uninitialized ciphertext handle.");
+      }
       const started = generation;
       const out = new Map<string, bigint>();
       const missing = pairs.filter((pair) => {
@@ -158,9 +159,17 @@ export function createDecryptionClient(
       );
       assertCurrent(started);
       // Validate the complete response before exposing any of its values.
-      const values = missing.map((pair) =>
-        BigInt(results[pair.handle as `0x${string}`] as bigint | string),
-      );
+      const response = results as Record<string, unknown>;
+      const values = missing.map((pair) => {
+        if (!Object.hasOwn(response, pair.handle)) {
+          throw new Error("The relayer returned an invalid decryption result.");
+        }
+        const value = response[pair.handle];
+        if (typeof value !== "bigint") {
+          throw new Error("The relayer returned an invalid decryption result.");
+        }
+        return value;
+      });
       missing.forEach((pair, index) => {
         cache.set(key(pair), values[index]);
         out.set(pair.handle, values[index]);
