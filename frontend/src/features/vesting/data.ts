@@ -1,114 +1,335 @@
-export type VestingWorkspace = "community" | "dao";
-export type GrantStatus = "active" | "stopped";
+import { isAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem";
 
-export type VestingGrant = {
-  id: string;
-  treasury: string;
-  recipient: string;
-  token: string;
-  start: string;
-  end: string;
-  cliff: string | null;
-  revocable: boolean;
-  status: GrantStatus;
-  revokedAt: string | null;
-  privateAccounting: {
-    allocation: string;
-    vested: string;
-    available: string;
-    claimed: string;
-    unvested: string;
-    outstandingRefund?: string;
-  };
+export type GrantRole = "created" | "received";
+
+export type GrantHandles = {
+  allocation: Hex;
+  claimed: Hex;
+  refundEntitlement: Hex;
+  refunded: Hex;
 };
 
-const treasury = "0x8cD4f98429399E4E9f0b4B9C7d8A34c5E93248A1";
-const recipient = "0x71B5c1167cE82040dE1a1BEf47d4a32e8431A9D4";
+export type PublicGrant = {
+  id: bigint;
+  treasury: Address;
+  recipient: Address;
+  token: Address;
+  start: bigint;
+  end: bigint;
+  cliff: bigint | null;
+  revocable: boolean;
+  revokedAt: bigint | null;
+  handles: GrantHandles;
+};
 
-export const vestingGrants: readonly VestingGrant[] = [
-  {
-    id: "GR-1048",
-    treasury,
-    recipient,
-    token: "cUSDC",
-    start: "Jan 1, 2025",
-    end: "Jan 1, 2027",
-    cliff: "Jan 1, 2026",
-    revocable: true,
-    status: "active",
-    revokedAt: null,
-    privateAccounting: {
-      allocation: "48,000 cUSDC",
-      vested: "18,240 cUSDC",
-      available: "6,240 cUSDC",
-      claimed: "12,000 cUSDC",
-      unvested: "29,760 cUSDC",
-    },
-  },
-  {
-    id: "GR-1021",
-    treasury,
-    recipient,
-    token: "cUSDT",
-    start: "Aug 1, 2024",
-    end: "Aug 1, 2026",
-    cliff: "Jan 1, 2025",
-    revocable: false,
-    status: "active",
-    revokedAt: null,
-    privateAccounting: {
-      allocation: "24,000 cUSDT",
-      vested: "16,880 cUSDT",
-      available: "4,880 cUSDT",
-      claimed: "12,000 cUSDT",
-      unvested: "7,120 cUSDT",
-    },
-  },
-  {
-    id: "GR-0888",
-    treasury: "0x2A49cdF700000000000000000000000000000447",
-    recipient,
-    token: "cUSDT",
-    start: "May 1, 2025",
-    end: "May 1, 2027",
-    cliff: null,
-    revocable: false,
-    status: "active",
-    revokedAt: null,
-    privateAccounting: {
-      allocation: "18,000 cUSDT",
-      vested: "6,000 cUSDT",
-      available: "2,000 cUSDT",
-      claimed: "4,000 cUSDT",
-      unvested: "12,000 cUSDT",
-    },
-  },
-  {
-    id: "GR-0971",
-    treasury,
-    recipient,
-    token: "cUSDC",
-    start: "Apr 1, 2024",
-    end: "Apr 1, 2026",
-    cliff: "Apr 1, 2025",
-    revocable: true,
-    status: "stopped",
-    revokedAt: "Sep 1, 2025",
-    privateAccounting: {
-      allocation: "36,000 cUSDC",
-      vested: "24,000 cUSDC",
-      available: "8,000 cUSDC",
-      claimed: "16,000 cUSDC",
-      unvested: "12,000 cUSDC",
-      outstandingRefund: "12,000 cUSDC",
-    },
-  },
-];
+export type VestingGrantRead = {
+  treasury: Address;
+  recipient: Address;
+  token: Address;
+  start: number;
+  end: number;
+  cliff: number;
+  revocable: boolean;
+  revoked: boolean;
+  revokedAt: bigint;
+  refundEntitlement: Hex;
+  refunded: Hex;
+  allocation: Hex;
+  claimed: Hex;
+};
 
-export function grantsForWorkspace(workspace: VestingWorkspace): readonly VestingGrant[] {
-  return workspace === "dao" ? vestingGrants.filter((grant) => grant.treasury === treasury) : vestingGrants.filter((grant) => grant.recipient === recipient);
+export function normalizeGrant(id: bigint, grant: VestingGrantRead): PublicGrant {
+  const start = BigInt(grant.start);
+  const end = BigInt(grant.end);
+  const cliff = grant.cliff === 0 ? null : BigInt(grant.cliff);
+
+  return {
+    id,
+    treasury: grant.treasury,
+    recipient: grant.recipient,
+    token: grant.token,
+    start,
+    end,
+    cliff,
+    revocable: grant.revocable,
+    revokedAt: grant.revoked ? grant.revokedAt : null,
+    handles: {
+      allocation: grant.allocation,
+      claimed: grant.claimed,
+      refundEntitlement: grant.refundEntitlement,
+      refunded: grant.refunded,
+    },
+  };
 }
 
-export function grantStatusLabel(status: GrantStatus): string {
-  return status === "active" ? "Active" : "Stopped";
+export function grantRolesFor(grant: PublicGrant, wallet: Address): GrantRole[] {
+  const roles: GrantRole[] = [];
+  if (sameAddress(grant.treasury, wallet)) roles.push("created");
+  if (sameAddress(grant.recipient, wallet)) roles.push("received");
+  return roles;
+}
+
+function sameAddress(left: Address, right: Address): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+export type GrantParty = "treasury" | "recipient";
+
+export type VestingReadClient = {
+  grantIdsForParty(query: {
+    role: GrantParty;
+    wallet: Address;
+    fromBlock: bigint;
+  }): Promise<readonly bigint[]>;
+  readGrant(id: bigint): Promise<VestingGrantRead>;
+};
+
+export async function discoverVestingGrants(
+  client: VestingReadClient,
+  wallet: Address,
+  fromBlock: bigint,
+): Promise<PublicGrant[]> {
+  const [created, received] = await Promise.all([
+    client.grantIdsForParty({ role: "treasury", wallet, fromBlock }),
+    client.grantIdsForParty({ role: "recipient", wallet, fromBlock }),
+  ]);
+  const ids = [...new Set([...created, ...received])].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+
+  return Promise.all(
+    ids.map(async (id) => normalizeGrant(id, await client.readGrant(id))),
+  );
+}
+
+export type PrivateGrantAmounts = {
+  allocation: bigint;
+  claimed: bigint;
+  refundEntitlement: bigint;
+  refunded: bigint;
+};
+
+export type GrantEstimate = {
+  vested: bigint;
+  available: bigint;
+  unvested: bigint;
+  outstandingRefund: bigint;
+};
+
+export function estimateGrant(
+  grant: PublicGrant,
+  amounts: PrivateGrantAmounts,
+  nowSeconds: bigint,
+): GrantEstimate {
+  const timestamp = grant.revokedAt ?? nowSeconds;
+  const vested =
+    timestamp < grant.start || (grant.cliff !== null && timestamp < grant.cliff)
+      ? 0n
+      : timestamp >= grant.end
+        ? amounts.allocation
+        : (amounts.allocation * (timestamp - grant.start)) /
+          (grant.end - grant.start);
+
+  return {
+    vested,
+    available: vested - amounts.claimed,
+    unvested: amounts.allocation - vested,
+    outstandingRefund: amounts.refundEntitlement - amounts.refunded,
+  };
+}
+
+export type CiphertextPair = {
+  handle: Hex;
+  contractAddress: Address;
+};
+
+export function privateAmountPairs(
+  grant: PublicGrant,
+  contractAddress: Address,
+): CiphertextPair[] {
+  return [
+    { handle: grant.handles.allocation, contractAddress },
+    { handle: grant.handles.claimed, contractAddress },
+    { handle: grant.handles.refundEntitlement, contractAddress },
+    { handle: grant.handles.refunded, contractAddress },
+  ];
+}
+
+export type FundingDecryptionState = "idle" | "decrypting" | "unavailable";
+export type FundingState = "funded" | "zero-funded" | "unverified" | "unavailable";
+
+export function fundingState(
+  allocation: bigint | undefined,
+  decryption: FundingDecryptionState,
+): FundingState {
+  if (allocation !== undefined) return allocation === 0n ? "zero-funded" : "funded";
+  return decryption === "unavailable" ? "unavailable" : "unverified";
+}
+
+const MAX_UINT48 = (1n << 48n) - 1n;
+const MAX_UINT64 = (1n << 64n) - 1n;
+
+export type DurationUnit = "day" | "week" | "month" | "year";
+
+export const DURATION_SECONDS: Record<DurationUnit, bigint> = {
+  day: 86_400n,
+  week: 604_800n,
+  month: 2_592_000n,
+  year: 31_536_000n,
+};
+
+export type GrantScheduleInput = {
+  start: bigint;
+  vestingDuration: string;
+  vestingUnit: DurationUnit;
+  cliffDuration: string;
+  cliffUnit: DurationUnit;
+};
+
+export type GrantScheduleErrors = Partial<
+  Record<"vestingDuration" | "cliffDuration", string>
+>;
+
+export type GrantSchedulePreparation =
+  | { start: bigint; end: bigint; cliff: bigint }
+  | { errors: GrantScheduleErrors };
+
+export function prepareGrantSchedule(
+  input: GrantScheduleInput,
+): GrantSchedulePreparation {
+  const errors: GrantScheduleErrors = {};
+  const vestingDuration = parseDuration(input.vestingDuration, input.vestingUnit);
+  const cliffDuration = parseDuration(input.cliffDuration, input.cliffUnit);
+
+  if (vestingDuration === undefined || vestingDuration === 0n) {
+    errors.vestingDuration = "Enter a positive whole duration.";
+  }
+  if (cliffDuration === undefined) {
+    errors.cliffDuration = "Enter a whole duration.";
+  } else if (vestingDuration !== undefined && cliffDuration > vestingDuration) {
+    errors.cliffDuration = "Cliff duration cannot exceed vesting duration.";
+  }
+  if (Object.keys(errors).length > 0) return { errors };
+
+  const end = input.start + vestingDuration!;
+  const cliff = cliffDuration === 0n ? 0n : input.start + cliffDuration!;
+  if (!isUint48(end) || !isUint48(cliff)) {
+    return { errors: { vestingDuration: "Duration exceeds the supported schedule limit." } };
+  }
+  return { start: input.start, end, cliff };
+}
+
+function parseDuration(value: string, unit: DurationUnit): bigint | undefined {
+  if (!/^\d+$/.test(value) || !(unit in DURATION_SECONDS)) return undefined;
+  return BigInt(value) * DURATION_SECONDS[unit];
+}
+
+export type CreateGrantInput = {
+  recipient: string;
+  token: Address;
+  vestingContract: Address;
+  allocation: string;
+  tokenDecimals: number;
+  start: bigint;
+  end: bigint;
+  cliff: bigint | null;
+  revocable: boolean;
+};
+
+export type CreateGrantRequest = {
+  recipient: Address;
+  token: Address;
+  allocation: bigint;
+  start: bigint;
+  end: bigint;
+  cliff: bigint;
+  revocable: boolean;
+};
+
+export type CreateGrantPreview = {
+  accrued: bigint;
+  vested: bigint;
+  available: bigint;
+  cliffPassed: boolean;
+};
+
+export type CreateGrantErrors = Partial<
+  Record<"recipient" | "allocation" | "start" | "end" | "cliff" | "vestingDuration" | "cliffDuration", string>
+>;
+
+export type CreateGrantPreparation =
+  | { request: CreateGrantRequest; preview: CreateGrantPreview }
+  | { errors: CreateGrantErrors };
+
+export function prepareCreateGrant(
+  input: CreateGrantInput,
+  nowSeconds: bigint,
+): CreateGrantPreparation {
+  const errors: CreateGrantErrors = {};
+  const recipient = parseRecipient(input.recipient);
+  const allocation = parseAllocation(input.allocation, input.tokenDecimals);
+
+  if (!recipient || recipient === zeroAddress || recipient.toLowerCase() === input.vestingContract.toLowerCase()) {
+    errors.recipient = "Enter a recipient wallet.";
+  }
+  if (allocation === undefined || allocation === 0n) {
+    errors.allocation = "Enter a positive value.";
+  } else if (allocation > MAX_UINT64) {
+    errors.allocation = "Allocation exceeds the supported limit.";
+  }
+  if (!isUint48(input.start)) errors.start = "Start must be a valid date.";
+  if (!isUint48(input.end) || input.end <= input.start || input.end <= nowSeconds) {
+    errors.end = "End must follow start and be in the future.";
+  }
+  if (
+    input.cliff !== null &&
+    (!isUint48(input.cliff) || input.cliff < input.start || input.cliff > input.end)
+  ) {
+    errors.cliff = "Cliff must fall between start and end.";
+  }
+  if (Object.keys(errors).length > 0) return { errors };
+
+  const request: CreateGrantRequest = {
+    recipient: recipient!,
+    token: input.token,
+    allocation: allocation!,
+    start: input.start,
+    end: input.end,
+    cliff: input.cliff ?? 0n,
+    revocable: input.revocable,
+  };
+  return { request, preview: previewCreateGrant(request, nowSeconds) };
+}
+
+export function previewCreateGrant(
+  request: CreateGrantRequest,
+  nowSeconds: bigint,
+): CreateGrantPreview {
+  const accrued =
+    nowSeconds <= request.start
+      ? 0n
+      : nowSeconds >= request.end
+        ? request.allocation
+        : (request.allocation * (nowSeconds - request.start)) /
+          (request.end - request.start);
+  const cliffPassed = request.cliff === 0n || nowSeconds >= request.cliff;
+  const vested = cliffPassed ? accrued : 0n;
+
+  return { accrued, vested, available: vested, cliffPassed };
+}
+
+function parseRecipient(value: string): Address | undefined {
+  return isAddress(value, { strict: false }) ? (value as Address) : undefined;
+}
+
+function parseAllocation(value: string, decimals: number): bigint | undefined {
+  try {
+    return parseUnits(value, decimals);
+  } catch {
+    return undefined;
+  }
+}
+
+function isUint48(value: bigint): boolean {
+  return value >= 0n && value <= MAX_UINT48;
 }

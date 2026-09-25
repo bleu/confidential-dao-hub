@@ -158,7 +158,7 @@ function DaoPayroll({ selectedToken: selectedTokenOption, onTokenChange }: { sel
     const context = { account: address, chainId: chainId!, token: selectedToken };
     const until = Math.floor(Date.now() / 1000) + 15 * 60;
     const result = await sendWithReceipt("operator", { address: selectedToken, abi: confidentialTokenAbi, functionName: "setOperator", args: [PAYROLL_CONTRACTS.multisend, BigInt(until)] });
-    if (result?.receipt && contextMatches(context)) {
+    if (result.ok && contextMatches(context)) {
       setOperatorExpiresAt(until);
       await refetchOperator();
     }
@@ -199,9 +199,8 @@ function DaoPayroll({ selectedToken: selectedTokenOption, onTokenChange }: { sel
         functionName: "multisend",
         args: [snapshot.token, snapshot.recipients, encrypted.handles, encrypted.proof],
       });
-      if (!result) return;
-      if (!result.receipt) {
-        setFlowError(`Transaction status is unknown. Check ${result.hash} before sending again.`);
+      if (!result.ok) {
+        setFlowError(result.message);
         return;
       }
       if (!contextMatches(snapshot)) return;

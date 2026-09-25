@@ -14,13 +14,13 @@ Confidential financial operations for DAO treasury teams, powered by [Zama FHEVM
 | [Payroll](docs/features/payroll.md) | Wallet-backed PoC in both workspaces | Live checks pending | [ADR-0003](docs/adr/0003-payroll.md) |
 | Payment Requests                      | Soon                     | Todo                 | [ADR-0004](docs/adr/0004-payment-requests.md) |
 | Token Launchpad                       | Soon                     | Backlog              | [ADR-0005](docs/adr/0005-token-launchpad.md)  |
-| [Vesting](docs/features/vesting.md) | UI preview in both workspaces | UI implemented | [ADR-0006](docs/adr/0006-vesting.md) |
+| [Vesting](docs/features/vesting.md) | Live discovery, private inspection, and grant creation | Claim, revocation, and refunds pending | [ADR-0006](docs/adr/0006-vesting.md) |
 | Governance                            | Soon                     | Todo                 | [ADR-0007](docs/adr/0007-governance.md)       |
 | Airdrop / Staking                     | Soon                     | Backlog              | [ADR-0008](docs/adr/0008-airdrop-staking.md)  |
 
-The homepage offers Community and DAO dashboard workspaces. The header switches between them; the left menu lists their features. Community lists buybacks and opens the seller's offer and claim tools, plus a UI-only view of received vesting grants. The DAO dashboard opens the current DAO's tools to create and manage buybacks, plus a UI-only vesting grant view. Both link to one public buyback report. All pages are public; wallet permissions control actions and private decryption. See [ADR-0010](docs/adr/0010-community-dao-workspaces.md) for the selected layout and access boundaries.
+The homepage offers Community and DAO dashboard workspaces. The header switches between them; the left menu lists their features. Community lists buybacks and opens the seller's offer and claim tools, plus received vesting grant records for the connected wallet. The DAO dashboard opens the current DAO's tools to create and manage buybacks, plus grant records created by the connected treasury. Both link to one public buyback report. All pages are public; wallet permissions control actions and private decryption. See [ADR-0010](docs/adr/0010-community-dao-workspaces.md) for the selected layout and access boundaries.
 
-Payroll has wallet-backed PoC routes at `/dao/payroll` and `/community/payroll`. The DAO route reads Sepolia token data, decrypts the caller's balance after a signature, grants the multisend operator permission, encrypts payments, submits the caller-funded multisend, checks the receipt, and decrypts payment results on demand. The Community route lists only payments for the connected recipient. The routes have local checks, but no approved live payment or private-read check has run. Do not use payroll with real funds. Vesting has normal DAO and Community UI routes backed by preview data only. The Vesting routes do not yet read a wallet, discover grants, decrypt values, or call the contract. Vesting has a shared confidential grant contract, deployment tooling, and local tests; live deployment and frontend integration remain pending. The other future operations have Soon pages in both workspaces, and their ADRs remain proposed.
+Payroll has wallet-backed PoC routes at `/dao/payroll` and `/community/payroll`. The DAO route reads Sepolia token data, decrypts the caller's balance after a signature, grants the multisend operator permission, encrypts payments, submits the caller-funded multisend, checks the receipt, and decrypts payment results on demand. The Community route lists only payments for the connected recipient. The routes have local checks, but no approved live payment or private-read check has run. Do not use payroll with real funds. Vesting reads the connected Sepolia wallet, discovers matching grants, and lets the fixed treasury or recipient decrypt grant amounts. The DAO vesting route can create a configured-token grant after operator authorization, encrypted input, and private funding verification. A zero-funded record is not shown as an active entitlement. Claim, revocation, and refund actions remain pending. The other future operations have Soon pages in both workspaces, and their ADRs remain proposed.
 
 ## Architecture
 
@@ -101,8 +101,8 @@ Visit `http://localhost:3000` to choose a workspace. No wallet is needed to brow
 | `/buybacks/report` | Shared public buyback report |
 | `/dao/payroll` | DAO payroll sender |
 | `/community/payroll` | Community payroll receiver |
-| `/community/vesting` | Received vesting grants, UI preview |
-| `/dao/vesting` | Create and manage vesting grants, UI preview |
+| `/community/vesting` | Received vesting grant records |
+| `/dao/vesting` | Create a vesting grant and view grants created by the treasury |
 | `/{community,dao}/payment-requests` | Payment Requests, Soon |
 | `/{community,dao}/token-launchpad` | Token Launchpad, Soon |
 | `/{community,dao}/governance` | Governance, Soon |
@@ -111,6 +111,8 @@ Visit `http://localhost:3000` to choose a workspace. No wallet is needed to brow
 `/community` and the old `/buybacks` URL redirect to the buyback list. Previous payroll-only URLs are removed. The current deployment uses the display name `cTOKEN DAO`; there is no DAO onboarding or selector. Leaving a private buyback page clears its decryption session and plaintext.
 
 The buyback configuration lives in `frontend/src/features/buybacks/contracts.ts`. Existing addresses and ABI behavior are preserved. See the [buybacks guide](docs/features/buybacks.md) for recorded addresses, privacy details, known limitations, and the two-wallet demo flow.
+
+Vesting configuration lives in `frontend/src/features/vesting/contracts.ts`. It contains the deployed Sepolia contract address, discovery start block, configured creation token, transaction ABI, and a decryption scope limited to the vesting contract. See the [vesting guide](docs/features/vesting.md) for the live grant-creation, discovery, and private-inspection flow.
 
 ## Buyback deployment
 
@@ -128,9 +130,9 @@ Seeding is a separate treasury action for the default mock payment token only. I
 
 ## Feature deployment
 
-Buybacks, payroll, and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia and has wallet-backed PoC routes, but it still needs approved live payment and private-read checks. Vesting has UI-only routes but is not deployed or integrated with a live contract.
+Buybacks, payroll, and vesting use shared guarded deployment helpers. Their feature-specific commands, environment variables, and operational limits are in the [deployment guide](docs/deployment.md). Payroll is deployed on Sepolia and has wallet-backed PoC routes, but it still needs approved live payment and private-read checks. Vesting is deployed on Sepolia and its frontend can create, discover, and privately inspect grants. Claims, revocation, and refunds remain pending.
 
-Buyback seeding and private state verification remain feature-only operations. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only, with the same guarded deployment flow. The [buybacks guide](docs/features/buybacks.md), [payroll guide](docs/features/payroll.md#sepolia-deployment), and [vesting guide](docs/features/vesting.md#later-sepolia-deployment) give feature-specific steps.
+Buyback seeding and private state verification remain feature-only operations. The existing `deploy:sepolia` and `deploy:localhost` npm commands remain buyback-only, with the same guarded deployment flow. The [buybacks guide](docs/features/buybacks.md), [payroll guide](docs/features/payroll.md#sepolia-deployment), and [vesting guide](docs/features/vesting.md#sepolia-deployment) give feature-specific steps.
 
 ## Extending the hub
 

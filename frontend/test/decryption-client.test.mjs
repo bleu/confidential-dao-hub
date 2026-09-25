@@ -7,6 +7,7 @@ const token = "0x2222222222222222222222222222222222222222";
 const alice = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const bob = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const handle = `0x${"1".repeat(64)}`;
+const zeroHandle = `0x${"0".repeat(64)}`;
 const pair = { handle, contractAddress: vault };
 const scope = { chainId: 11155111, contractAddresses: [vault, token] };
 const sign = async () => "0x1234";
@@ -39,6 +40,43 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+test("rejects an uninitialized handle instead of treating it as confirmed zero", async () => {
+  const sdk = backend();
+  const client = createDecryptionClient(scope, alice, sdk.load);
+  const emptyPair = { handle: zeroHandle, contractAddress: vault };
+
+  assert.equal(client.getCachedDecryption(zeroHandle, vault), undefined);
+  await assert.rejects(client.userDecrypt([emptyPair], sign), /uninitialized/);
+  assert.equal(sdk.signatures.length, 0);
+  assert.equal(sdk.requests.length, 0);
+  assert.equal(client.getCachedDecryption(zeroHandle, vault), undefined);
+});
+
+test("accepts a verified encrypted zero and rejects malformed responses without caching", async () => {
+  const validZero = backend(async () => ({ [handle]: 0n }));
+  const validClient = createDecryptionClient(scope, alice, validZero.load);
+  assert.equal((await validClient.userDecrypt([pair], sign)).get(handle), 0n);
+  assert.equal(validClient.getCachedDecryption(handle, vault), 0n);
+
+  for (const response of [{}, { [handle]: false }, { [handle]: null }]) {
+    const sdk = backend(async () => response);
+    const client = createDecryptionClient(scope, alice, sdk.load);
+    await assert.rejects(client.userDecrypt([pair], sign), /invalid decryption result/);
+    assert.equal(client.getCachedDecryption(handle, vault), undefined);
+  }
+});
+
+test("does not cache a valid sibling when one response is malformed", async () => {
+  const secondHandle = `0x${"2".repeat(64)}`;
+  const secondPair = { handle: secondHandle, contractAddress: vault };
+  const sdk = backend(async () => ({ [handle]: 42n, [secondHandle]: false }));
+  const client = createDecryptionClient(scope, alice, sdk.load);
+
+  await assert.rejects(client.userDecrypt([pair, secondPair], sign), /invalid decryption result/);
+  assert.equal(client.getCachedDecryption(handle, vault), undefined);
+  assert.equal(client.getCachedDecryption(secondHandle, vault), undefined);
+});
 
 test("signs only the feature scope, reuses its session, and caches by contract and handle", async () => {
   const sdk = backend();

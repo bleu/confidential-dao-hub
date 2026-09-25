@@ -95,6 +95,7 @@
     "preflight:vesting:sepolia": "hardhat run scripts/vesting/preflight.ts --network sepolia",
     "deploy:vesting:sepolia": "hardhat deploy --tags ConfidentialVesting --network sepolia",
     "verify:vesting:sepolia": "hardhat run scripts/vesting/verify-deployment.ts --network sepolia",
+    "e2e:vesting:sepolia": "ts-node scripts/vesting/live-e2e.ts",
     "verify:sepolia": "hardhat verify --network sepolia"
   },
   "overrides": {
