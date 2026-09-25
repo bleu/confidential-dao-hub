@@ -6,7 +6,12 @@ import { useAccount, useSignTypedData } from "wagmi";
 import { type SignTypedDataFn } from "@/lib/decryption-client";
 import { DecryptionProvider, useDecryption } from "@/lib/decryption-context";
 
-import { VESTING_DECRYPTION_SCOPE } from "./contracts";
+import {
+  findVestingToken,
+  formatVestingTokenAmount,
+  type VestingToken,
+  VESTING_DECRYPTION_SCOPE,
+} from "./contracts";
 import { VestingCreateGrantPanel } from "./CreateGrantPanel";
 import {
   estimateGrant,
@@ -101,6 +106,8 @@ function GrantDetail({
   grant: PublicGrant;
   authorized: boolean;
 }) {
+  const token = findVestingToken(grant.token);
+
   return (
     <div className="space-y-5">
       <section className={panel}>
@@ -109,7 +116,7 @@ function GrantDetail({
         <dl className="mt-5 grid gap-4 sm:grid-cols-2">
           <Fact label="Treasury" value={grant.treasury} />
           <Fact label="Recipient" value={grant.recipient} />
-          <Fact label="Token" value={grant.token} />
+          <Fact label="Token" value={token ? `${token.symbol} (${grant.token})` : grant.token} />
           <Fact label="Start" value={formatTimestamp(grant.start)} />
           <Fact label="End" value={formatTimestamp(grant.end)} />
           <Fact label="Cliff" value={grant.cliff === null ? "None" : formatTimestamp(grant.cliff)} />
@@ -117,7 +124,7 @@ function GrantDetail({
         </dl>
       </section>
 
-      <PrivateAccounting grant={grant} authorized={authorized} />
+      <PrivateAccounting grant={grant} token={token} authorized={authorized} />
 
       <section className={panel}>
         <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">{workspace === "dao" ? "Treasury action" : "Recipient action"}</p>
@@ -131,9 +138,11 @@ function GrantDetail({
 
 function PrivateAccounting({
   grant,
+  token,
   authorized,
 }: {
   grant: PublicGrant;
+  token: VestingToken | undefined;
   authorized: boolean;
 }) {
   const { address } = useAccount();
@@ -155,9 +164,10 @@ function PrivateAccounting({
   const confirmedFunding = fundingState(amounts?.allocation, state);
   const nowSeconds = useCurrentTime();
   const estimate = amounts && estimateGrant(grant, amounts, nowSeconds);
+  const canDecrypt = Boolean(token && authorized && address);
 
   async function decrypt() {
-    if (!authorized || !address) return;
+    if (!token || !authorized || !address) return;
     const version = ++requestVersion.current;
     setState("decrypting");
     try {
@@ -191,9 +201,11 @@ function PrivateAccounting({
           <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">Private accounting</p>
           <h2 className="mt-2 text-xl text-zinc-100">Encrypted values</h2>
         </div>
-        <button type="button" onClick={decrypt} disabled={!authorized || !address || state === "decrypting"} className={authorized && address ? "rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300" : disabledButton}>{state === "decrypting" ? "Decrypting…" : "Decrypt private values"}</button>
+        <button type="button" onClick={decrypt} disabled={!canDecrypt || state === "decrypting"} className={canDecrypt ? "rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300" : disabledButton}>{state === "decrypting" ? "Decrypting…" : "Decrypt private values"}</button>
       </div>
-      {!authorized ? (
+      {!token ? (
+        <p className="mt-3 text-sm leading-6 text-zinc-400">Token metadata is unavailable, so encrypted amounts cannot be displayed safely.</p>
+      ) : !authorized ? (
         <p className="mt-3 text-sm leading-6 text-zinc-400">{accessReason}</p>
       ) : confirmedFunding === "unavailable" ? (
         <p className="mt-3 text-sm leading-6 text-red-300">Private values are unavailable. This does not mean the grant has zero funding.</p>
@@ -204,14 +216,14 @@ function PrivateAccounting({
       ) : (
         <>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Fact label="Allocation" value={formatUnits(amounts.allocation)} />
-            <Fact label="Vested" value={formatUnits(estimate.vested)} />
-            <Fact label="Available estimate" value={formatUnits(estimate.available)} />
-            <Fact label="Claimed" value={formatUnits(amounts.claimed)} />
-            <Fact label="Unvested" value={formatUnits(estimate.unvested)} />
-            {grant.revokedAt !== null && <Fact label="Outstanding refund" value={formatUnits(estimate.outstandingRefund)} />}
+            <Fact label="Allocation" value={formatVestingTokenAmount(amounts.allocation, token)} />
+            <Fact label="Vested" value={formatVestingTokenAmount(estimate.vested, token)} />
+            <Fact label="Available estimate" value={formatVestingTokenAmount(estimate.available, token)} />
+            <Fact label="Claimed" value={formatVestingTokenAmount(amounts.claimed, token)} />
+            <Fact label="Unvested" value={formatVestingTokenAmount(estimate.unvested, token)} />
+            {grant.revokedAt !== null && <Fact label="Outstanding refund" value={formatVestingTokenAmount(estimate.outstandingRefund, token)} />}
           </dl>
-          <p className="mt-3 text-xs leading-5 text-zinc-500">Amounts are token base units. Availability is an estimate because execution time controls a claim.</p>
+          <p className="mt-3 text-xs leading-5 text-zinc-500">Availability is an estimate because execution time controls a claim.</p>
         </>
       )}
     </section>
@@ -237,8 +249,4 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function formatTimestamp(timestamp: bigint): string {
   return new Date(Number(timestamp) * 1_000).toISOString().slice(0, 10);
-}
-
-function formatUnits(value: bigint): string {
-  return `${value.toString()} base units`;
 }

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  findVestingToken,
+  formatVestingTokenAmount,
   VESTING_CHAIN_ID,
   VESTING_CONTRACT,
   VESTING_DECRYPTION_SCOPE,
@@ -48,6 +50,15 @@ test("configures cTOKEN and cUSDT creation with required write surfaces", () => 
   assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "createGrant"), true);
   assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "isOperator"), true);
   assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "setOperator"), true);
+});
+
+test("formats configured vesting token amounts without guessing unknown decimals", () => {
+  const cUsdt = findVestingToken("0x5FFB152C8D371AE59C25689C9F0F6E8A914CCBCA");
+
+  assert.deepEqual(cUsdt, VESTING_TOKENS[1]);
+  assert.equal(formatVestingTokenAmount(1_000_000n, cUsdt), "1 cUSDT");
+  assert.equal(formatVestingTokenAmount(12_500_001n, cUsdt), "12.500001 cUSDT");
+  assert.equal(findVestingToken("0x0000000000000000000000000000000000000001"), undefined);
 });
 
 test("a reset vesting scope rejects a stale private read", async () => {
