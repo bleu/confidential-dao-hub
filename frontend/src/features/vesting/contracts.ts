@@ -10,6 +10,11 @@ export const VESTING_TOKENS = [
     symbol: "cTOKEN",
     decimals: 6,
   },
+  {
+    address: "0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA",
+    symbol: "cUSDT",
+    decimals: 6,
+  },
 ] as const;
 
 export const vestingAbi = parseAbi([

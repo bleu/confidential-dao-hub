@@ -4,9 +4,9 @@ The contract stage of [ADR 0006](../adr/0006-vesting.md) is implemented and test
 
 ## DAO grant creation interface
 
-The DAO route provides one individual-grant form. It accepts a recipient, a configured token, allocation, start/end dates, an optional cliff, and revocability. The connected wallet is shown as the fixed treasury and refund destination. The review step shows the fixed recipient, token, schedule, and revocability before the wallet transaction. Terms cannot be edited, reassigned, or topped up after creation.
+The DAO route provides one individual-grant form. It accepts a recipient, a configured token, allocation, vesting and cliff durations, an optional custom start date, and revocability. It starts immediately with no cliff by default. Duration units are days, weeks, 30-day months, and 365-day years. The connected wallet is shown as the fixed treasury and refund destination. The review step shows the fixed recipient, token, derived schedule, and revocability before the wallet transaction. Terms cannot be edited, reassigned, or topped up after creation.
 
-The current configured token list contains Sepolia cTOKEN with six decimals. This UI list is a selection limit only. The contract can still hold and expose grants created directly with other compatible tokens.
+The current configured token list contains Sepolia cTOKEN and cUSDT, each with six decimals. This UI list is a selection limit only. The contract can still hold and expose grants created directly with other compatible tokens.
 
 The browser checks the public schedule rules before encryption. A backdated start is valid when the end is still in the future. The review explains immediately accrued vesting and whether a future cliff still blocks access. The transaction execution time, rather than the browser preview, controls the final result.
 

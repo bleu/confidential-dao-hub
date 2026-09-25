@@ -32,11 +32,16 @@ test("limits vesting decryption to the deployed vesting contract", () => {
   });
 });
 
-test("configures cTOKEN creation and its required write surfaces", () => {
+test("configures cTOKEN and cUSDT creation with required write surfaces", () => {
   assert.deepEqual(VESTING_TOKENS, [
     {
       address: "0xa2E95Db3Bb2f2B02b2990c66A74534D79684D80f",
       symbol: "cTOKEN",
+      decimals: 6,
+    },
+    {
+      address: "0x5ffb152C8D371Ae59c25689c9F0F6e8a914CcbcA",
+      symbol: "cUSDT",
       decimals: 6,
     },
   ]);

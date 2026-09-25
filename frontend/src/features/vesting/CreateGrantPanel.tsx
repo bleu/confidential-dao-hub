@@ -14,9 +14,11 @@ import { VESTING_CHAIN_ID, VESTING_CONTRACT, VESTING_DECRYPTION_SCOPE, VESTING_T
 import { createGrant, retryPrivateFundingCheck, type GrantCreationState } from "./grantCreation";
 import {
   prepareCreateGrant,
+  prepareGrantSchedule,
   type CreateGrantErrors,
   type CreateGrantPreparation,
   type CreateGrantRequest,
+  type DurationUnit,
 } from "./data";
 
 export type VestingToken = {
@@ -29,9 +31,12 @@ type FormValues = {
   recipient: string;
   token: Address;
   allocation: string;
+  customStart: boolean;
   start: string;
-  end: string;
-  cliff: string;
+  vestingDuration: string;
+  vestingUnit: DurationUnit;
+  cliffDuration: string;
+  cliffUnit: DurationUnit;
   revocable: boolean;
 };
 
@@ -50,9 +55,12 @@ export function VestingCreateGrantForm({
     recipient: "",
     token: tokens[0]?.address ?? "0x0000000000000000000000000000000000000000",
     allocation: "",
+    customStart: false,
     start: "",
-    end: "",
-    cliff: "",
+    vestingDuration: "",
+    vestingUnit: "day",
+    cliffDuration: "0",
+    cliffUnit: "day",
     revocable: false,
   });
   const [errors, setErrors] = useState<CreateGrantErrors>({});
@@ -65,6 +73,17 @@ export function VestingCreateGrantForm({
   function reviewGrant() {
     const selectedToken = tokens.find((token) => token.address === values.token);
     if (!selectedToken) return;
+    const schedule = prepareGrantSchedule({
+      start: values.customStart ? toSeconds(values.start) : nowSeconds,
+      vestingDuration: values.vestingDuration,
+      vestingUnit: values.vestingUnit,
+      cliffDuration: values.cliffDuration,
+      cliffUnit: values.cliffUnit,
+    });
+    if ("errors" in schedule) {
+      setErrors(schedule.errors);
+      return;
+    }
     const result = prepareCreateGrant(
       {
         recipient: values.recipient,
@@ -72,9 +91,9 @@ export function VestingCreateGrantForm({
         vestingContract: VESTING_CONTRACT,
         allocation: values.allocation,
         tokenDecimals: selectedToken.decimals,
-        start: toSeconds(values.start),
-        end: toSeconds(values.end),
-        cliff: values.cliff ? toSeconds(values.cliff) : null,
+        start: schedule.start,
+        end: schedule.end,
+        cliff: schedule.cliff === 0n ? null : schedule.cliff,
         revocable: values.revocable,
       },
       nowSeconds,
@@ -99,9 +118,9 @@ export function VestingCreateGrantForm({
           <ReviewFact label="Fixed recipient" value={request.recipient} />
           <ReviewFact label="Fixed token" value={tokens.find((token) => token.address === request.token)?.symbol ?? request.token} />
           <ReviewFact label="Allocation" value={values.allocation} />
-          <ReviewFact label="Start" value={values.start} />
-          <ReviewFact label="End" value={values.end} />
-          <ReviewFact label="Cliff" value={values.cliff || "None"} />
+          <ReviewFact label="Start" value={formatDate(request.start)} />
+          <ReviewFact label="End" value={formatDate(request.end)} />
+          <ReviewFact label="Cliff" value={request.cliff === 0n ? "None" : formatDate(request.cliff)} />
           <ReviewFact label="Revocability" value={request.revocable ? "Revocable" : "Not revocable"} />
         </dl>
         {preview.cliffPassed ? (
@@ -125,10 +144,13 @@ export function VestingCreateGrantForm({
         <Field label="Recipient" error={errors.recipient}><input id="recipient" value={values.recipient} onChange={(event) => update("recipient", event.target.value)} className={inputClass} /></Field>
         <Field label="Token"><select id="token" value={values.token} onChange={(event) => update("token", event.target.value as Address)} className={inputClass}>{tokens.map((token) => <option key={token.address} value={token.address}>{token.symbol}</option>)}</select></Field>
         <Field label="Allocation" error={errors.allocation}><input id="allocation" inputMode="decimal" value={values.allocation} onChange={(event) => update("allocation", event.target.value)} className={inputClass} /></Field>
-        <label className="flex items-end gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 text-sm text-zinc-200"><input type="checkbox" checked={values.revocable} onChange={(event) => update("revocable", event.target.checked)} /> Revocable</label>
-        <Field label="Start" error={errors.start}><input id="start" type="date" value={values.start} onChange={(event) => update("start", event.target.value)} className={inputClass} /></Field>
-        <Field label="End" error={errors.end}><input id="end" type="date" value={values.end} onChange={(event) => update("end", event.target.value)} className={inputClass} /></Field>
-        <Field label="Cliff" error={errors.cliff}><input id="cliff" type="date" value={values.cliff} onChange={(event) => update("cliff", event.target.value)} className={inputClass} /></Field>
+        <Field label="Vesting duration" error={errors.vestingDuration}><input id="vesting-duration" type="number" min="1" step="1" inputMode="numeric" value={values.vestingDuration} onChange={(event) => update("vestingDuration", event.target.value)} className={inputClass} /></Field>
+        <Field label="Vesting unit"><select id="vesting-unit" value={values.vestingUnit} onChange={(event) => update("vestingUnit", event.target.value as DurationUnit)} className={inputClass}><DurationOptions /></select></Field>
+        <Field label="Cliff duration" error={errors.cliffDuration}><input id="cliff-duration" type="number" min="0" step="1" inputMode="numeric" value={values.cliffDuration} onChange={(event) => update("cliffDuration", event.target.value)} className={inputClass} /></Field>
+        <Field label="Cliff unit"><select id="cliff-unit" value={values.cliffUnit} onChange={(event) => update("cliffUnit", event.target.value as DurationUnit)} className={inputClass}><DurationOptions /></select></Field>
+        <label className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 text-sm text-zinc-200"><input id="custom-start" type="checkbox" checked={values.customStart} onChange={(event) => update("customStart", event.target.checked)} /> Set custom start date</label>
+        {values.customStart && <Field label="Custom start date" error={errors.start}><input id="custom-start-date" type="date" value={values.start} onChange={(event) => update("start", event.target.value)} className={inputClass} /></Field>}
+        <fieldset className="sm:col-span-2"><legend className="text-sm text-zinc-300">Revocability</legend><div className="mt-1 grid gap-2 sm:grid-cols-2"><label className={choiceClass(!values.revocable)}><input type="radio" name="revocability" checked={!values.revocable} onChange={() => update("revocable", false)} /> Not revocable</label><label className={choiceClass(values.revocable)}><input type="radio" name="revocability" checked={values.revocable} onChange={() => update("revocable", true)} /> Revocable</label></div></fieldset>
       </div>
       <p className="mt-4 text-sm leading-6 text-zinc-400">The connected wallet is the fixed treasury and refund destination. The selected token, recipient, schedule, and revocability are permanent.</p>
       <button type="button" onClick={reviewGrant} className="mt-5 rounded-md border border-yellow-700 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300">Review grant</button>
@@ -283,6 +305,18 @@ function ResultPanel({ message, action, onAction }: { message: string; action?: 
 }
 
 const inputClass = "mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100";
+
+function DurationOptions() {
+  return <><option value="day">Days</option><option value="week">Weeks</option><option value="month">Months (30 days)</option><option value="year">Years (365 days)</option></>;
+}
+
+function choiceClass(selected: boolean) {
+  return `flex items-center gap-2 rounded-lg border p-3 text-sm ${selected ? "border-yellow-700 bg-yellow-400/10 text-yellow-200" : "border-zinc-800 bg-zinc-950/40 text-zinc-200"}`;
+}
+
+function formatDate(seconds: bigint): string {
+  return new Date(Number(seconds) * 1_000).toISOString().slice(0, 10);
+}
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return <label className="block text-sm text-zinc-300">{label}{children}{error && <span className="mt-1 block text-xs text-red-300">{error}</span>}</label>;

@@ -7,6 +7,7 @@ import {
   grantRolesFor,
   normalizeGrant,
   prepareCreateGrant,
+  prepareGrantSchedule,
 } from "../src/features/vesting/data.ts";
 
 import {
@@ -103,6 +104,56 @@ test("prepares a valid backdated grant and preserves its immediate vesting previ
       cliffPassed: true,
     },
   });
+});
+
+
+test("derives fixed-duration vesting schedules", () => {
+  assert.deepEqual(
+    prepareGrantSchedule({
+      start: 1_700_000_000n,
+      vestingDuration: "2",
+      vestingUnit: "year",
+      cliffDuration: "1",
+      cliffUnit: "month",
+    }),
+    {
+      start: 1_700_000_000n,
+      end: 1_763_072_000n,
+      cliff: 1_702_592_000n,
+    },
+  );
+
+  assert.deepEqual(
+    prepareGrantSchedule({
+      start: 1_700_000_000n,
+      vestingDuration: "1",
+      vestingUnit: "year",
+      cliffDuration: "0",
+      cliffUnit: "day",
+    }),
+    {
+      start: 1_700_000_000n,
+      end: 1_731_536_000n,
+      cliff: 0n,
+    },
+  );
+});
+
+test("rejects invalid vesting and cliff durations", () => {
+  assert.deepEqual(
+    prepareGrantSchedule({
+      start: 1_700_000_000n,
+      vestingDuration: "1",
+      vestingUnit: "week",
+      cliffDuration: "2",
+      cliffUnit: "week",
+    }),
+    {
+      errors: {
+        cliffDuration: "Cliff duration cannot exceed vesting duration.",
+      },
+    },
+  );
 });
 
 test("rejects invalid grant terms before encryption", () => {

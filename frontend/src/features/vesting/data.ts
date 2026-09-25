@@ -165,6 +165,61 @@ export function fundingState(
 const MAX_UINT48 = (1n << 48n) - 1n;
 const MAX_UINT64 = (1n << 64n) - 1n;
 
+export type DurationUnit = "day" | "week" | "month" | "year";
+
+export const DURATION_SECONDS: Record<DurationUnit, bigint> = {
+  day: 86_400n,
+  week: 604_800n,
+  month: 2_592_000n,
+  year: 31_536_000n,
+};
+
+export type GrantScheduleInput = {
+  start: bigint;
+  vestingDuration: string;
+  vestingUnit: DurationUnit;
+  cliffDuration: string;
+  cliffUnit: DurationUnit;
+};
+
+export type GrantScheduleErrors = Partial<
+  Record<"vestingDuration" | "cliffDuration", string>
+>;
+
+export type GrantSchedulePreparation =
+  | { start: bigint; end: bigint; cliff: bigint }
+  | { errors: GrantScheduleErrors };
+
+export function prepareGrantSchedule(
+  input: GrantScheduleInput,
+): GrantSchedulePreparation {
+  const errors: GrantScheduleErrors = {};
+  const vestingDuration = parseDuration(input.vestingDuration, input.vestingUnit);
+  const cliffDuration = parseDuration(input.cliffDuration, input.cliffUnit);
+
+  if (vestingDuration === undefined || vestingDuration === 0n) {
+    errors.vestingDuration = "Enter a positive whole duration.";
+  }
+  if (cliffDuration === undefined) {
+    errors.cliffDuration = "Enter a whole duration.";
+  } else if (vestingDuration !== undefined && cliffDuration > vestingDuration) {
+    errors.cliffDuration = "Cliff duration cannot exceed vesting duration.";
+  }
+  if (Object.keys(errors).length > 0) return { errors };
+
+  const end = input.start + vestingDuration!;
+  const cliff = cliffDuration === 0n ? 0n : input.start + cliffDuration!;
+  if (!isUint48(end) || !isUint48(cliff)) {
+    return { errors: { vestingDuration: "Duration exceeds the supported schedule limit." } };
+  }
+  return { start: input.start, end, cliff };
+}
+
+function parseDuration(value: string, unit: DurationUnit): bigint | undefined {
+  if (!/^\d+$/.test(value) || !(unit in DURATION_SECONDS)) return undefined;
+  return BigInt(value) * DURATION_SECONDS[unit];
+}
+
 export type CreateGrantInput = {
   recipient: string;
   token: Address;
@@ -195,7 +250,7 @@ export type CreateGrantPreview = {
 };
 
 export type CreateGrantErrors = Partial<
-  Record<"recipient" | "allocation" | "start" | "end" | "cliff", string>
+  Record<"recipient" | "allocation" | "start" | "end" | "cliff" | "vestingDuration" | "cliffDuration", string>
 >;
 
 export type CreateGrantPreparation =
