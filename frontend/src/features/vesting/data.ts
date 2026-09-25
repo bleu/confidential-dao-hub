@@ -75,6 +75,26 @@ function sameAddress(left: Address, right: Address): boolean {
 
 export type GrantParty = "treasury" | "recipient";
 
+export type GrantWorkspace = "community" | "dao";
+export type AvailableGrantAction = "claim" | "revoke" | "retry-refund";
+
+export function grantActionFor(
+  workspace: GrantWorkspace,
+  grant: PublicGrant,
+  wallet: Address | undefined,
+  amounts: PrivateGrantAmounts | undefined,
+): AvailableGrantAction | undefined {
+  if (!wallet) return undefined;
+  if (workspace === "community") {
+    return sameAddress(grant.recipient, wallet) ? "claim" : undefined;
+  }
+  if (!sameAddress(grant.treasury, wallet)) return undefined;
+  if (grant.revokedAt !== null) {
+    return amounts && amounts.refundEntitlement > amounts.refunded ? "retry-refund" : undefined;
+  }
+  return grant.revocable ? "revoke" : undefined;
+}
+
 export type VestingReadClient = {
   grantIdsForParty(query: {
     role: GrantParty;

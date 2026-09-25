@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   fundingState,
   privateAmountPairs,
+  grantActionFor,
   grantRolesFor,
   normalizeGrant,
   prepareCreateGrant,
@@ -69,6 +70,24 @@ test("keeps Treasury, Recipient, dual-role, and unconfigured-token grants distin
   assert.deepEqual(grantRolesFor(recipientOnlyGrant, treasury), ["received"]);
   assert.deepEqual(grantRolesFor(dualRoleGrant, treasury), ["created", "received"]);
   assert.equal(unconfiguredTokenGrant.token, "0x4b73c1167cE82040dE1a1BEf47d4a32e8431A9D4");
+});
+
+test("shows only the fixed party's available grant action", () => {
+  const amounts = { allocation: 100n, claimed: 10n, refundEntitlement: 0n, refunded: 0n };
+
+  assert.equal(grantActionFor("community", treasuryOnlyGrant, treasury, amounts), undefined);
+  assert.equal(grantActionFor("community", recipientOnlyGrant, treasury, amounts), "claim");
+  assert.equal(grantActionFor("dao", recipientOnlyGrant, treasury, amounts), undefined);
+  assert.equal(grantActionFor("dao", treasuryOnlyGrant, treasury, amounts), "revoke");
+  assert.equal(grantActionFor("dao", { ...treasuryOnlyGrant, revocable: false }, treasury, amounts), undefined);
+  assert.equal(
+    grantActionFor("dao", { ...treasuryOnlyGrant, revokedAt: 1_750_000_000n }, treasury, { ...amounts, refundEntitlement: 90n, refunded: 30n }),
+    "retry-refund",
+  );
+  assert.equal(
+    grantActionFor("dao", { ...treasuryOnlyGrant, revokedAt: 1_750_000_000n }, treasury, amounts),
+    undefined,
+  );
 });
 
 test("prepares a valid backdated grant and preserves its immediate vesting preview", () => {

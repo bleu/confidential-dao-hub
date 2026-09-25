@@ -48,6 +48,9 @@ test("configures cTOKEN and cUSDT creation with required write surfaces", () => 
     },
   ]);
   assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "createGrant"), true);
+  assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "claim"), true);
+  assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "revoke"), true);
+  assert.equal(vestingAbi.some((item) => item.type === "function" && item.name === "retryRefund"), true);
   assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "isOperator"), true);
   assert.equal(tokenAbi.some((item) => item.type === "function" && item.name === "setOperator"), true);
 });

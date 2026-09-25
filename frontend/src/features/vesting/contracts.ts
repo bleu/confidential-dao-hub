@@ -31,8 +31,14 @@ export function formatVestingTokenAmount(value: bigint, token: VestingToken): st
 export const vestingAbi = parseAbi([
   "struct Grant { address treasury; address recipient; address token; uint48 start; uint48 end; uint48 cliff; bool revocable; bool revoked; uint256 revokedAt; bytes32 refundEntitlement; bytes32 refunded; bytes32 allocation; bytes32 claimed; }",
   "event GrantCreated(uint256 indexed grantId, address indexed treasury, address indexed recipient, address token)",
+  "event GrantClaimed(uint256 indexed grantId)",
+  "event GrantRevoked(uint256 indexed grantId)",
+  "event GrantRefundRetried(uint256 indexed grantId)",
   "function getGrant(uint256 grantId) view returns (Grant memory)",
   "function createGrant(address recipient, address token, uint48 start, uint48 end, uint48 cliff, bool revocable, bytes32 amount, bytes inputProof) returns (uint256 grantId)",
+  "function claim(uint256 grantId)",
+  "function revoke(uint256 grantId)",
+  "function retryRefund(uint256 grantId)",
 ]);
 
 export const tokenAbi = parseAbi([
